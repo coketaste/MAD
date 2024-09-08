@@ -129,7 +129,7 @@ def get_args() -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(description="Run the application of MAD, Model Automation and Dashboarding v" + __version__ + ".")
     parser.add_argument(
-        "--model_name", type=str, help="Model name to run the application."
+        "--model-name", type=str, help="Model name to run the application."
     )
     parser.add_argument(
         "--timeout",
@@ -138,22 +138,22 @@ def get_args() -> argparse.Namespace:
         default=14400,
     )
     parser.add_argument(
-        "--live_output",
+        "--live-output",
         action="store_true",
         help="Prints output in real-time directly on STDOUT.",
     )
     parser.add_argument(
-        "--clean_docker_cache",
+        "--clean-docker-cache",
         action="store_true",
         help="Rebuild docker image without using cache.",
     )
     parser.add_argument(
-        "--keep_alive",
+        "--keep-alive",
         action="store_true",
         help="Keep the container alive after the application finishes running.",
     )
     parser.add_argument(
-        "--keep_model_dir",
+        "--keep-model-dir",
         action="store_true",
         help="Keep the model directory after the application finishes running.",
     )
@@ -165,7 +165,7 @@ def get_args() -> argparse.Namespace:
         default="perf.csv",
     )
     parser.add_argument(
-        "--log_level", type=str, help="Log level for the logger.", default="INFO"
+        "--log-level", type=str, help="Log level for the logger.", default="INFO"
     )
 
     args = parser.parse_args()
