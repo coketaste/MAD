@@ -30,14 +30,14 @@ The script builds the Docker image, runs the Docker container, executes training
 and logs the performance metrics. 
 
 The script takes the following arguments:
-    --model_name: The model name to run the application.
+    --model-name: The model name to run the application.
     --timeout: Timeout for the application running model in seconds, default timeout of 14400 (4 hours).
-    --live_output: Prints output in real-time directly on STDOUT.
-    --clean_docker_cache: Rebuild docker image without using cache.
-    --keep_alive: Keep the container alive after the application finishes running.
-    --keep_model_dir: Keep the model directory after the application finishes running.
+    --live-output: Prints output in real-time directly on STDOUT.
+    --clean-docker_cache: Rebuild docker image without using cache.
+    --keep-alive: Keep the container alive after the application finishes running.
+    --keep-model-dir: Keep the model directory after the application finishes running.
     -o, --output: Output file for the result.
-    --log_level: Log level for the logger.
+    --log-level: Log level for the logger.
 
 The script uses the following environment variables:
     MAD_MODEL_NAME: Model name to run the application.
@@ -117,14 +117,14 @@ def get_args() -> argparse.Namespace:
     """Get input arguments from command line
 
     Input arguments:
-        --model_name: The model name to run the application.
+        --model-name: The model name to run the application.
         --timeout: Timeout for the application running model in seconds, default timeout of 14400 (4 hours).
-        --live_output: Prints output in real-time directly on STDOUT.
-        --clean_docker_cache: Rebuild docker image without using cache.
-        --keep_alive: Keep the container alive after the application finishes running.
-        --keep_model_dir: Keep the model directory after the application finishes running.
+        --live-output: Prints output in real-time directly on STDOUT.
+        --clean-docker_cache: Rebuild docker image without using cache.
+        --keep-alive: Keep the container alive after the application finishes running.
+        --keep-model-dir: Keep the model directory after the application finishes running.
         -o, --output: Output file for the result.
-        --log_level: Log level for the logger.
+        --log-level: Log level for the logger.
 
     Returns:
         argparse.Namespace: The input arguments
