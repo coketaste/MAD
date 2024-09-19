@@ -131,7 +131,7 @@ def get_args() -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(description="Run the application of MAD, Model Automation and Dashboarding v" + __version__ + ".")
     parser.add_argument(
-        "--tags", type=str, help="tags to run model (can be multiple)."
+        "--tags", nargs='+', default=[], help="tags to run model (can be multiple)."
     )
     parser.add_argument(
         "--timeout",
@@ -479,9 +479,11 @@ def main() -> bool:
     else:
         with open('tags.json') as t:
             user_tags = json.load(t)
+
     print("Selected TAGS are " + ', '.join(user_tags["tags"]) + '.' )
 
     for model_info in models:
+        print(model_info["name"])
         if [x for x in user_tags["tags"] if x in model_info["tags"] or x == model_info["name"] ]:
             print("Selected MODEL, " + model_info["name"] + " :", model_info)
             return_status &= run_model(model_info, args, console)
