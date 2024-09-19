@@ -203,7 +203,7 @@ def run_model(
     else:
         os.makedirs(os.path.dirname(log_file), exist_ok=True)
 
-    logger = get_logger("MAD", log_level, log_file)
+    logger = get_logger(model_name, log_level, log_file)
 
     # Initialize the status
     status = 'FAILURE'
@@ -446,8 +446,6 @@ def run_model(
 
     # Clean up the instance of docker
     del docker
-
-    del logger
 
     return_code = True if run_details.status == 'SUCCESS' else False    
 
