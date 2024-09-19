@@ -447,6 +447,8 @@ def run_model(
     # Clean up the instance of docker
     del docker
 
+    del logger
+
     return_code = True if run_details.status == 'SUCCESS' else False    
 
     return return_code
@@ -483,7 +485,6 @@ def main() -> bool:
     print("Selected TAGS are " + ', '.join(user_tags["tags"]) + '.' )
 
     for model_info in models:
-        print(model_info["name"])
         if [x for x in user_tags["tags"] if x in model_info["tags"] or x == model_info["name"] ]:
             print("Selected MODEL, " + model_info["name"] + " :", model_info)
             return_status &= run_model(model_info, args, console)
