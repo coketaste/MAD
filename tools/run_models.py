@@ -30,7 +30,7 @@ The script builds the Docker image, runs the Docker container, executes training
 and logs the performance metrics. 
 
 The script takes the following arguments:
-    --model-name: The model name to run the application.
+    --tags: tags to run model.
     --timeout: Timeout for the application running model in seconds, default timeout of 14400 (4 hours).
     --live-output: Prints output in real-time directly on STDOUT.
     --clean-docker_cache: Rebuild docker image without using cache.
@@ -117,7 +117,7 @@ def get_args() -> argparse.Namespace:
     """Get input arguments from command line
 
     Input arguments:
-        --model-name: The model name to run the application.
+        --tags: tags to run model.
         --timeout: Timeout for the application running model in seconds, default timeout of 14400 (4 hours).
         --live-output: Prints output in real-time directly on STDOUT.
         --clean-docker_cache: Rebuild docker image without using cache.
