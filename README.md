@@ -20,14 +20,14 @@ pip3 install -r requirements.txt
 With tools/run_models.py script, all models in models.json can be run locally on a docker host, to collect performance results.
 
 ```
-usage: tools/run_models.py [-h] [--model-name MODEL_NAME] [--timeout TIMEOUT] [--live-output] [--clean-docker-cache] [--keep-alive] [--keep-model-dir] [-o OUTPUT] [--log-level LOG_LEVEL]
+usage: tools/run_models.py [-h] [--tags TAGS] [--timeout TIMEOUT] [--live-output] [--clean-docker-cache] [--keep-alive] [--keep-model-dir] [-o OUTPUT] [--log-level LOG_LEVEL]
 
 Run the application of MAD, Model Automation and Dashboarding v1.0.0.
 
 options:
   -h, --help            show this help message and exit
-  --model-name MODEL_NAME
-                        Model name to run the application.
+  --tags TAGS
+                        Tags to run model (can be multiple).
   --timeout TIMEOUT     Timeout for the application running model in seconds, default timeout of 7200 (2 hours).
   --live-output         Prints output in real-time directly on STDOUT.
   --clean-docker-cache  Rebuild docker image without using cache.
