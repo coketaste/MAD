@@ -10,6 +10,10 @@
   max_concurrency: 1 8 32 128
   env:
     VLLM_ROCM_USE_AITER: 1
+    VLLM_ROCM_USE_AITER_LINEAR: 1
+    VLLM_ROCM_USE_AITER_MOE: 1
+    VLLM_ROCM_USE_AITER_RMSNORM: 1
+    HIP_FORCE_DEV_KERNARG: 1
   extra_args:
     --block-size: 1
 
@@ -24,6 +28,10 @@
   max_concurrency: 1 8 32 128
   env:
     VLLM_ROCM_USE_AITER: 1
+    VLLM_ROCM_USE_AITER_LINEAR: 1
+    VLLM_ROCM_USE_AITER_MOE: 1
+    VLLM_ROCM_USE_AITER_RMSNORM: 1
+    HIP_FORCE_DEV_KERNARG: 1
   extra_args:
     --block-size: 64
     --attention-backend: ROCM_AITER_UNIFIED_ATTN
@@ -42,6 +50,10 @@
   max_concurrency: 1 8 32 128
   env:
     VLLM_ROCM_USE_AITER: 1
+    VLLM_ROCM_USE_AITER_LINEAR: 1
+    VLLM_ROCM_USE_AITER_MOE: 1
+    VLLM_ROCM_USE_AITER_RMSNORM: 1
+    HIP_FORCE_DEV_KERNARG: 1
   extra_args:
     --attention-backend: ROCM_ATTN
   arch_overrides:
@@ -60,6 +72,10 @@
   max_concurrency: 1 8 32 128
   env:
     VLLM_ROCM_USE_AITER: 1
+    VLLM_ROCM_USE_AITER_LINEAR: 1
+    VLLM_ROCM_USE_AITER_MOE: 1
+    VLLM_ROCM_USE_AITER_RMSNORM: 1
+    HIP_FORCE_DEV_KERNARG: 1
   extra_args:
     --attention-backend: ROCM_ATTN
 
@@ -73,6 +89,10 @@
   max_concurrency: 1 8 32 128
   env:
     VLLM_ROCM_USE_AITER: 1
+    VLLM_ROCM_USE_AITER_LINEAR: 1
+    VLLM_ROCM_USE_AITER_MOE: 1
+    VLLM_ROCM_USE_AITER_RMSNORM: 1
+    HIP_FORCE_DEV_KERNARG: 1
   extra_args:
     --attention-backend: ROCM_ATTN
   arch_overrides:
@@ -90,6 +110,10 @@
   max_concurrency: 1 8 32 128
   env:
     VLLM_ROCM_USE_AITER: 1
+    VLLM_ROCM_USE_AITER_LINEAR: 1
+    VLLM_ROCM_USE_AITER_MOE: 1
+    VLLM_ROCM_USE_AITER_RMSNORM: 1
+    HIP_FORCE_DEV_KERNARG: 1
   extra_args:
     --attention-backend: ROCM_ATTN
   arch_overrides:

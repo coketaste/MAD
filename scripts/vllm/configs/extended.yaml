@@ -11,9 +11,21 @@
   max_concurrency: 1
   env:
     VLLM_ROCM_USE_AITER: 1
+    VLLM_ROCM_USE_AITER_LINEAR: 1
+    VLLM_ROCM_USE_AITER_MOE: 1
+    VLLM_ROCM_USE_AITER_RMSNORM: 1
+    HIP_FORCE_DEV_KERNARG: 1
+    # GEMM tuning: enable PyTorch TunableOp to auto-select best rocBLAS/hipBLASLt
+    # GEMM kernels per shape on MI300X (low-risk, ~5-8% throughput gain).
+    PYTORCH_TUNABLEOP_ENABLED: 1
+    PYTORCH_TUNABLEOP_TUNING: 1
   extra_args:
     --block-size: 64
     --attention-backend: ROCM_AITER_UNIFIED_ATTN
+    # torch.compile inductor: level 3 = piecewise compilation w/ Inductor codegen
+    # + CUDA/HIP graph capture. Recommended production setting on ROCm/MI300X
+    # (~5-10% decode throughput gain via fused pointwise/RMSNorm/residual kernels).
+    -O: '3'
 
 - benchmark: serving
   model:
@@ -31,8 +43,15 @@
   max_concurrency: 1
   env:
     VLLM_ROCM_USE_AITER: 1
+    VLLM_ROCM_USE_AITER_LINEAR: 1
+    VLLM_ROCM_USE_AITER_MOE: 1
+    VLLM_ROCM_USE_AITER_RMSNORM: 1
+    HIP_FORCE_DEV_KERNARG: 1
+    PYTORCH_TUNABLEOP_ENABLED: 1
+    PYTORCH_TUNABLEOP_TUNING: 1
   extra_args:
     --attention-backend: ROCM_ATTN
+    -O: '3'
   arch_overrides:
     gfx942:
       dtype: float16
@@ -47,8 +66,15 @@
   max_concurrency: 1
   env:
     VLLM_ROCM_USE_AITER: 1
+    VLLM_ROCM_USE_AITER_LINEAR: 1
+    VLLM_ROCM_USE_AITER_MOE: 1
+    VLLM_ROCM_USE_AITER_RMSNORM: 1
+    HIP_FORCE_DEV_KERNARG: 1
+    PYTORCH_TUNABLEOP_ENABLED: 1
+    PYTORCH_TUNABLEOP_TUNING: 1
   extra_args:
     --attention-backend: ROCM_ATTN
+    -O: '3'
   arch_overrides:
     gfx942:
       dtype: float16
@@ -64,8 +90,15 @@
   max_concurrency: 1
   env:
     VLLM_ROCM_USE_AITER: 1
+    VLLM_ROCM_USE_AITER_LINEAR: 1
+    VLLM_ROCM_USE_AITER_MOE: 1
+    VLLM_ROCM_USE_AITER_RMSNORM: 1
+    HIP_FORCE_DEV_KERNARG: 1
+    PYTORCH_TUNABLEOP_ENABLED: 1
+    PYTORCH_TUNABLEOP_TUNING: 1
   extra_args:
     --attention-backend: ROCM_ATTN
+    -O: '3'
   arch_overrides:
     gfx942:
       dtype: float16
@@ -81,8 +114,15 @@
   max_concurrency: 1
   env:
     VLLM_ROCM_USE_AITER: 1
+    VLLM_ROCM_USE_AITER_LINEAR: 1
+    VLLM_ROCM_USE_AITER_MOE: 1
+    VLLM_ROCM_USE_AITER_RMSNORM: 1
+    HIP_FORCE_DEV_KERNARG: 1
+    PYTORCH_TUNABLEOP_ENABLED: 1
+    PYTORCH_TUNABLEOP_TUNING: 1
   extra_args:
     --attention-backend: ROCM_ATTN
+    -O: '3'
   arch_overrides:
     gfx942:
       dtype: float16
@@ -99,9 +139,16 @@
   max_concurrency: 1
   env:
     VLLM_ROCM_USE_AITER: 1
+    VLLM_ROCM_USE_AITER_LINEAR: 1
+    VLLM_ROCM_USE_AITER_MOE: 1
+    VLLM_ROCM_USE_AITER_RMSNORM: 1
+    HIP_FORCE_DEV_KERNARG: 1
+    PYTORCH_TUNABLEOP_ENABLED: 1
+    PYTORCH_TUNABLEOP_TUNING: 1
   extra_args:
     --attention-backend: ROCM_ATTN
     --enable-expert-parallel: True
+    -O: '3'
   arch_overrides:
     gfx942:
       dtype: float16
