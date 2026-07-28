@@ -25,6 +25,7 @@ Below are blueprints of supported models along with their documentation.
 | [**SGLang disaggregated P/D inference**](scripts/sglang_disagg/README.MD) | Distributed Inference P/D disaggregation with SGLang (MoRI IO, Mooncake) | Llama-3.1-8B, Qwen3-32B, Llama-3.3-70B-FP8, Llama-3.1-405B-FP8, Mixtral-8x7B, DeepSeek-V3, DeepSeek-R1 |
 | [**SGLang disaggregated P/D inference with WideEP/LargeEP**](scripts/sglang_disagg/README.MD) | Distributed Inference P/D disaggregation with SGLang with WideEP/LargeEP | DeepSeek-V3, DeepSeek-R1 |
 | [**KVCache Transfer Bench**](scripts/kvcache_transfer_bench/README.md) | Inter-node Transfer Benchmark | no specific models |
+| [**ATOM inference**](scripts/atom/) | Day-0 LLM inference with AMD's ATOM engine on Instinct GPUs | Kimi-K3 |
 
 ## Table of Contents
 

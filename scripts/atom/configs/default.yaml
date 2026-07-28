@@ -1,0 +1,34 @@
+# Day-0 Kimi-K3 deployment with ATOM on 8x AMD Instinct MI355X (gfx950), TP8.
+# Reproduces the validated configuration from:
+# https://www.amd.com/en/developer/resources/technical-articles/2026/kimi-k3-on-amd-instinct-gpus.html
+#
+# The run brings up ATOM's native OpenAI-compatible server, runs a GSM8K 5-shot
+# correctness check, and measures basic token throughput. No peak-performance claims.
+
+- model: moonshotai/Kimi-K3
+  tp: 8
+  kv_cache_dtype: fp8
+  max_model_len: 16384
+  max_num_seqs: 64
+  max_num_batched_tokens: 10240
+  gpu_memory_utilization: 0.93
+  block_size: 128
+  # GSM8K 5-shot over the full 1319-sample set, as validated in the article.
+  num_fewshot: 5
+  gsm8k_limit: 1319
+  # Basic throughput probe (not tuned for peak performance).
+  inp: 1000
+  out: 100
+  max_concurrency: 4
+  env:
+    ATOM_LOADER_USE_THREADPOOL: 1
+    ATOM_LOADER_THREADPOOL_WORKERS: 16
+    ATOM_SYNC_AFTER_LOAD: 1
+    ATOM_DIST_TIMEOUT_SECONDS: 3600
+    ATOM_USE_TRITON_GEMM: 1
+    AITER_USE_GROUPED_GEMM: 0
+    ATOM_USE_TRITON_MOE: 0
+    AITER_FLYDSL_FORCE: 1
+    AITER_FORCE_GFX1250: 0
+    ATOM_USE_UNIFIED_ATTN: 1
+    ATOM_FORCE_ATTN_TRITON: 1
