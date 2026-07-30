@@ -87,10 +87,6 @@ workload — and one command executes the whole pipeline.
 *Figure 1: The madengine execution pipeline. One registry entry drives all five stages;
 the only thing that changes between engines is which row of `models.json` you select.*
 
-> Editable source: [`assets/kimi-k3-madengine-pipeline.drawio`](assets/kimi-k3-madengine-pipeline.drawio)
-> — open in [diagrams.net](https://app.diagrams.net) or the draw.io desktop app to modify,
-> then re-export as PNG/SVG over the file above.
-
 For every model, madengine performs the same five steps — **Build → Start → Resolve →
 Execute → Report** — regardless of which engine sits underneath. That uniformity is the
 whole point: the *operator experience* is identical across vLLM, SGLang, and ATOM, even
@@ -144,10 +140,6 @@ every model in the registry, Kimi-K3 included:
 
 *Figure 3: madengine's internal call chain for a Kimi-K3 run — the same five classes
 handle every model in the registry.*
-
-> Editable source: [`assets/kimi-k3-madengine-architecture.drawio`](assets/kimi-k3-madengine-architecture.drawio)
-> — open in [diagrams.net](https://app.diagrams.net) or the draw.io desktop app to modify,
-> then re-export as PNG/SVG over the file above.
 
 The CLI's `run()` command hands off to `RunOrchestrator.execute()`, which — for the
 "build + run" path this post uses — first calls `BuildOrchestrator.execute()` to turn the
