@@ -1,0 +1,109 @@
+<mxfile host="app.diagrams.net" agent="Claude Code" version="24.0.0">
+  <diagram name="madengine Kimi-K3 Pipeline" id="madengine-pipeline">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1650" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="madengine run --tags pyt_vllm_kimi-k3" style="text;html=1;align=center;verticalAlign=middle;fontSize=16;fontStyle=1;fontColor=#0B0B0B;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="360" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Command box -->
+        <mxCell id="cmd" value="madengine run&#10;--tags pyt_vllm_kimi-k3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fcfcfb;strokeColor=#2a78d6;strokeWidth=2;fontColor=#0B0B0B;fontSize=12;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="20" y="140" width="180" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- models.json registry box -->
+        <mxCell id="registry" value="models.json" style="swimlane;whiteSpace=wrap;html=1;fillColor=#fcfcfb;strokeColor=#898781;fontColor=#0B0B0B;fontSize=13;fontStyle=1;startSize=26;align=center;" vertex="1" parent="1">
+          <mxGeometry x="260" y="90" width="330" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="reg-vllm" value="pyt_vllm_kimi-k3 &#8594; docker/&#8230; + scripts/&#8230;" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#52514E;spacingLeft=8;" vertex="1" parent="registry">
+          <mxGeometry x="10" y="30" width="310" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="reg-sglang" value="pyt_sglang_kimi-k3 &#8594; docker/&#8230; + scripts/&#8230;" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#52514E;spacingLeft=8;" vertex="1" parent="registry">
+          <mxGeometry x="10" y="65" width="310" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="reg-atom" value="pyt_atom_kimi-k3 &#8594; docker/&#8230; + scripts/&#8230;" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#52514E;spacingLeft=8;" vertex="1" parent="registry">
+          <mxGeometry x="10" y="100" width="310" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cmd-to-registry" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;elbow=vertical;startArrow=none;strokeColor=#0B0B0B;strokeWidth=1.5;" edge="1" parent="1" source="cmd" target="registry">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Five pipeline stage boxes -->
+        <mxCell id="build" value="BUILD" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a78d6;strokeColor=none;fontColor=#FFFFFF;fontSize=13;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="20" y="330" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="build-detail" value="Dockerfile&#10;from registry" style="text;html=1;align=center;verticalAlign=top;fontSize=11;fontColor=#52514E;" vertex="1" parent="1">
+          <mxGeometry x="20" y="390" width="150" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="start" value="START" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a78d6;strokeColor=none;fontColor=#FFFFFF;fontSize=13;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="230" y="330" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="start-detail" value="host devices,&#10;shm, secrets" style="text;html=1;align=center;verticalAlign=top;fontSize=11;fontColor=#52514E;" vertex="1" parent="1">
+          <mxGeometry x="230" y="390" width="150" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="resolve" value="RESOLVE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a78d6;strokeColor=none;fontColor=#FFFFFF;fontSize=13;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="440" y="330" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="resolve-detail" value="HF cache or&#10;MAD_DATAHOME mount" style="text;html=1;align=center;verticalAlign=top;fontSize=11;fontColor=#52514E;" vertex="1" parent="1">
+          <mxGeometry x="440" y="390" width="150" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="execute" value="EXECUTE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a78d6;strokeColor=none;fontColor=#FFFFFF;fontSize=13;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="650" y="330" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="execute-detail" value="run_*.py drives&#10;the YAML sweep" style="text;html=1;align=center;verticalAlign=top;fontSize=11;fontColor=#52514E;" vertex="1" parent="1">
+          <mxGeometry x="650" y="390" width="150" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="report" value="REPORT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a78d6;strokeColor=none;fontColor=#FFFFFF;fontSize=13;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="860" y="330" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="report-detail" value="normalized&#10;schema + html" style="text;html=1;align=center;verticalAlign=top;fontSize=11;fontColor=#52514E;" vertex="1" parent="1">
+          <mxGeometry x="860" y="390" width="150" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- perf.csv output box -->
+        <mxCell id="output" value="perf_Kimi-K3.csv" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fcfcfb;strokeColor=#eb6834;strokeWidth=2;fontColor=#0B0B0B;fontSize=12;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="335" width="160" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- connect registry down to build (fan out from registry center) -->
+        <mxCell id="registry-to-build" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;elbow=vertical;startArrow=none;strokeColor=#0B0B0B;strokeWidth=1.5;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="registry" target="build">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="95" y="300" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="build-start" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;startArrow=none;strokeColor=#0B0B0B;strokeWidth=1.5;" edge="1" parent="1" source="build" target="start">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="start-resolve" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;startArrow=none;strokeColor=#0B0B0B;strokeWidth=1.5;" edge="1" parent="1" source="start" target="resolve">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="resolve-execute" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;startArrow=none;strokeColor=#0B0B0B;strokeWidth=1.5;" edge="1" parent="1" source="resolve" target="execute">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="execute-report" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;startArrow=none;strokeColor=#0B0B0B;strokeWidth=1.5;" edge="1" parent="1" source="execute" target="report">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="report-output" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;startArrow=none;strokeColor=#0B0B0B;strokeWidth=1.5;" edge="1" parent="1" source="report" target="output">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Caption -->
+        <mxCell id="caption" value="Figure 1: The madengine execution pipeline. One registry entry drives all five stages; the only thing that changes between engines is which row of models.json you select." style="text;html=1;align=left;verticalAlign=top;fontSize=11;fontColor=#898781;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="20" y="470" width="1220" height="40" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

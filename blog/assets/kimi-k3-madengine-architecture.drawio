@@ -1,0 +1,58 @@
+<mxfile host="app.diagrams.net" agent="Claude Code" version="24.0.0">
+  <diagram name="madengine architecture — running Kimi-K3" id="madengine-architecture">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1650" pageHeight="220" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="Inside madengine run --tags pyt_vllm_kimi-k3" style="text;html=1;align=center;verticalAlign=middle;fontSize=16;fontStyle=1;fontColor=#0B0B0B;" vertex="1" parent="1">
+          <mxGeometry x="20" y="10" width="500" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Main spine: 5 blue boxes, title + module path only -->
+        <mxCell id="cli" value="CLI&#10;cli/commands/run.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a78d6;strokeColor=none;fontColor=#FFFFFF;fontSize=13;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="20" y="80" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="build" value="BuildOrchestrator&#10;orchestration/build_orchestrator.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a78d6;strokeColor=none;fontColor=#FFFFFF;fontSize=13;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="260" y="80" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="run" value="RunOrchestrator&#10;orchestration/run_orchestrator.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a78d6;strokeColor=none;fontColor=#FFFFFF;fontSize=13;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="500" y="80" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="exec" value="ContainerRunner&#10;execution/container_runner.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a78d6;strokeColor=none;fontColor=#FFFFFF;fontSize=13;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="740" y="80" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="report" value="Reporting&#10;reporting/update_perf_csv.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a78d6;strokeColor=none;fontColor=#FFFFFF;fontSize=13;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="980" y="80" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Output artifact box -->
+        <mxCell id="output" value="perf_Kimi-K3.csv" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fcfcfb;strokeColor=#eb6834;strokeWidth=2;fontColor=#0B0B0B;fontSize=12;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="95" width="180" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Arrows: main spine -->
+        <mxCell id="cli-build" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;startArrow=none;strokeColor=#0B0B0B;strokeWidth=1.5;" edge="1" parent="1" source="cli" target="build">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="build-run" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;startArrow=none;strokeColor=#0B0B0B;strokeWidth=1.5;" edge="1" parent="1" source="build" target="run">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="run-exec" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;startArrow=none;strokeColor=#0B0B0B;strokeWidth=1.5;" edge="1" parent="1" source="run" target="exec">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="exec-report" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;startArrow=none;strokeColor=#0B0B0B;strokeWidth=1.5;" edge="1" parent="1" source="exec" target="report">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="report-output" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;startArrow=none;strokeColor=#0B0B0B;strokeWidth=1.5;" edge="1" parent="1" source="report" target="output">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
