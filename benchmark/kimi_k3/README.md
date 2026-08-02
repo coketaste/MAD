@@ -55,7 +55,7 @@ For benchmark results and enablement details, see the framework-specific blog po
 - **Image**: [`vllm/vllm-openai-rocm:kimi-k3`](https://hub.docker.com/r/vllm/vllm-openai-rocm)
 - **Dockerfile**: [docker/pyt_vllm_kimi_k3.ubuntu.amd.Dockerfile](../../docker/pyt_vllm_kimi_k3.ubuntu.amd.Dockerfile)
 - **Config**: [scripts/vllm/configs/default.yaml](../../scripts/vllm/configs/default.yaml) (Kimi-K3 block)
-- **Benchmark**: Online serving at concurrency 1 / 8 / 32 / 128, input 1024, output 1024
+- **Benchmark**: Online serving at concurrency 1 / 4 / 8 / 16 / 32 / 64 / 128 / 256, input 8192, output 1024
 
 ### SGLang
 
@@ -63,7 +63,8 @@ For benchmark results and enablement details, see the framework-specific blog po
 - **Image**: [`lmsysorg/sglang-rocm:rocm720-mi35x-k3-20260727`](https://hub.docker.com/r/lmsysorg/sglang-rocm)
 - **Dockerfile**: [docker/pyt_sglang_kimi_k3.ubuntu.amd.Dockerfile](../../docker/pyt_sglang_kimi_k3.ubuntu.amd.Dockerfile)
 - **Config**: [scripts/sglang/configs/kimi_k3.yaml](../../scripts/sglang/configs/kimi_k3.yaml)
-- **Benchmark**: Online serving at concurrency 2 / 4 / 8 / 16 / 32, input 8192, output 1024
+- **Benchmark**: Online serving at concurrency 1 / 4 / 8 / 16 / 32 / 64 / 128 / 256, input 8192, output 1024
+- **Variants**: `nospec` (default) and `dspark` (speculative decoding), selected with `--variant`
 
 ### ATOM
 
@@ -71,7 +72,7 @@ For benchmark results and enablement details, see the framework-specific blog po
 - **Image**: [`rocm/atom-dev:rocm7.2.4_ubuntu24.04_py3.12_pytorch2.10.0_20260727_kimi_k3`](https://hub.docker.com/r/rocm/atom-dev)
 - **Dockerfile**: [docker/pyt_atom_kimi_k3.ubuntu.amd.Dockerfile](../../docker/pyt_atom_kimi_k3.ubuntu.amd.Dockerfile)
 - **Config**: [scripts/atom/configs/default.yaml](../../scripts/atom/configs/default.yaml)
-- **Benchmark**: Online serving at concurrency 64 / 128 / 256, input 1024 and 4096, output 1024
+- **Benchmark**: Online serving at concurrency 1 / 4 / 8 / 16 / 32 / 64 / 128 / 256, input 8192, output 1024, fp8 KV cache
 
 ## Standalone benchmarking
 
