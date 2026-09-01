@@ -89,7 +89,7 @@ repeatable** enablement.
 - **Reliability by design.** Automatic server-health gating, unbuffered logging, model-cache
   reuse, and a fixed CSV schema make a run on your cluster reproduce a run on ours.
 - **Real numbers, not a mockup.** An out-of-the-box `madengine run` on 8× MI355X already
-  shows all three engines converging mid-sweep and then diverging — see Figure 3.
+  shows all three engines converging mid-sweep and then diverging — see Figure 3. [1]
 
 ---
 
@@ -562,7 +562,7 @@ with ATOM close behind and vLLM trailing both; all three converge around concurr
 flatten out — vLLM finishes ~31% above SGLang and ~60% above ATOM at concurrency 128.
 Because the sweep axes are shared by construction, spreads of that size reflect real
 engine behavior rather than different workloads — subject to the bench-client caveats
-in Table 1, which are far too small to account for a 31–60% gap.
+in Table 1, which are far too small to account for a 31–60% gap. [1]
 
 | Concurrency | vLLM (tok/s) | SGLang (tok/s) | ATOM (tok/s) |
 |---:|---:|---:|---:|
@@ -577,7 +577,7 @@ in Table 1, which are far too small to account for a 31–60% gap.
 Table 4: Raw total-token-throughput values behind Figure 3, straight out of each
 engine's `perf_Kimi-K3.csv`. The shipped configs sweep to concurrency 256, but the runs
 reported here were taken through 128 only; the 256 point has not been measured yet on
-any of the three engines.
+any of the three engines. [1]
 
 ---
 
@@ -635,10 +635,27 @@ madengine run --tags pyt_atom_kimi-k3   --keep-model-dir --live-output
 
 [6] [AITER](https://github.com/ROCm/aiter) — AI Tensor Engine for ROCm
 
-## Disclaimers
+## Endnotes
 
-Hardware configuration: 8× AMD Instinct™ MI350X / MI355X (gfx950), TP8. Kimi-K3
-checkpoint ≈ 1.56 TB.
+[1] Configuration Details
+
+Total token throughput vs. max concurrency, 8192 input / 1024 output tokens, TP8,
+concurrency swept 1·4·8·16·32·64·128, one sweep shared across all three engines.
+Container images: `vllm/vllm-openai-rocm:kimi-k3`,
+`lmsysorg/sglang-rocm:...-k3-20260727`, `rocm/atom-dev:...20260727_kimi_k3`. Kimi-K3
+checkpoint ≈ 1.56 TB, weights sourced from Hugging Face (`moonshotai/Kimi-K3`).
+Benchmarks reproduced via `madengine run --tags pyt_vllm_kimi-k3` (or
+`pyt_sglang_kimi-k3`, `pyt_atom_kimi-k3`) using the shipped configs referenced in
+this post.
+
+System Configuration
+
+AMD Instinct MI350X / MI355X GPUs
+GPU architecture: gfx950
+GPU count / topology: 8x AMD Instinct MI350X / MI355X, TP8
+Model: Kimi-K3 (Moonshot AI), 2.8T-parameter MoE, native MXFP4 weights
+
+## Disclaimers
 
 Third-party content is licensed to you directly by the third party that owns the
 content and is not licensed to you by AMD. ALL LINKED THIRD-PARTY CONTENT IS
