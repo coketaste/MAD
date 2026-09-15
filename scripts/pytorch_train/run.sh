@@ -28,16 +28,33 @@
 export HF_TOKEN=$MAD_SECRETS_HFTOKEN
 
 # Parse named arguments
+# --batch_size: omitted → Primus/YAML defaults; integer → Hydra override;
+#               auto → MAD GPU table (historical MAD numbers).
+BATCH_SIZE=""
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --model_repo) MODEL_REPO="$2"; shift ;;
+        --batch_size)
+            if [[ -z "${2:-}" ]]; then
+                echo "Error: --batch_size requires a value (positive integer or 'auto')."
+                exit 1
+            fi
+            BATCH_SIZE="$2"
+            shift
+            ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
 done
 
+if [[ -n "$BATCH_SIZE" && "$BATCH_SIZE" != "auto" && ! "$BATCH_SIZE" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Error: --batch_size must be a positive integer or 'auto' (got '$BATCH_SIZE')."
+    exit 1
+fi
+
 echo "=hyper params start="
 echo $MODEL_REPO
+echo "batch_size=${BATCH_SIZE:-yaml}"
 echo "=hyper params end="
 
 datatypes=("BF16")
@@ -88,7 +105,11 @@ for task in "${tasks[@]}"; do
   for datatype in "${datatypes[@]}"; do
     for sequence_length in "${sequence_lengths[@]}"; do
       echo "Running: $task - $model - $datatype - $sequence_length"
-      ./pytorch_benchmark_report.sh -t $task -m $model -p $datatype -s $sequence_length
+      report_args=(-t "$task" -m "$model" -p "$datatype" -s "$sequence_length")
+      if [[ -n "$BATCH_SIZE" ]]; then
+        report_args+=(-b "$BATCH_SIZE")
+      fi
+      ./pytorch_benchmark_report.sh "${report_args[@]}"
     done
   done
 done

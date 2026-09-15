@@ -47,7 +47,8 @@ usage() {
     echo "  -m <model_repo>      Model (Flux, Stable-Diffusion-XL, Mochi-1, Hunyuan-video, Wan2_1-i2v, DLRM)"
     echo "  -p <datatype>        Precision type (BF16 for diffusion models; FP32 or TF32 for DLRM)"
     echo "  -n <num_gpus>        Number of GPUs (1 or 8)"
-    echo "  -b <batch_size>      Batch size"
+    echo "  -b <batch_size>      Batch size: positive integer, or 'auto' for the MAD GPU table."
+    echo "                       Omit to use AMDiffusionBenchmark / Primus YAML defaults."
     exit 1
 }
 
@@ -104,7 +105,7 @@ echo "  Model: $MODEL_REPO"
 echo "  Datatype: $DATATYPE"
 echo "  Sequence Length: $SEQUENCE_LENGTH"
 echo "  Number of GPUs: $NUM_GPUS"
-echo "  Batch size: $BATCH_SIZE"
+echo "  Batch size request: ${BATCH_SIZE:-yaml default}"
 
 # config environment
 export HF_HOME=/workspace/huggingface
@@ -177,6 +178,81 @@ fi
 
 echo "GPU DEVICE name: $DEVICE"
 
+# Diffusion batch size:
+#   unset  → do not override Hydra YAML (matches Primus CLI)
+#   auto   → historical MAD GPU table
+#   integer → explicit train_args.train_batch_size override
+gpu_table_batch_size() {
+    case "$MODEL_REPO" in
+        Flux)
+            if [[ "$DEVICE" == "MI355X" || "$DEVICE" == "MI350X" ]]; then
+                echo 16
+            elif [[ "$DEVICE" == "MI300X" || "$DEVICE" == "MI325X" ]]; then
+                echo 10
+            fi
+            ;;
+        Stable-Diffusion-XL)
+            if [[ "$DEVICE" == "MI355X" || "$DEVICE" == "MI350X" ]]; then
+                echo 12
+            elif [[ "$DEVICE" == "MI300X" || "$DEVICE" == "MI325X" ]]; then
+                echo 20
+            fi
+            ;;
+        Mochi-1)
+            if [[ "$DEVICE" == "MI355X" || "$DEVICE" == "MI350X" ]]; then
+                echo 4
+            elif [[ "$DEVICE" == "MI300X" || "$DEVICE" == "MI325X" ]]; then
+                echo 1
+            fi
+            ;;
+        Hunyuan-video)
+            if [[ "$DEVICE" == "MI355X" || "$DEVICE" == "MI350X" ]]; then
+                echo 3
+            elif [[ "$DEVICE" == "MI300X" || "$DEVICE" == "MI325X" ]]; then
+                echo 1
+            fi
+            ;;
+        Wan2_1-i2v)
+            echo 1
+            ;;
+    esac
+}
+
+if [[ "$MODEL_REPO" != "DLRM" ]]; then
+    if [[ "$BATCH_SIZE" == "auto" ]]; then
+        BATCH_SIZE="$(gpu_table_batch_size)"
+        if [[ -z "$BATCH_SIZE" ]]; then
+            echo "Error: could not resolve GPU-table batch size for model '$MODEL_REPO' on device '$DEVICE'." >&2
+            exit 1
+        fi
+        echo "[INFO] Using MAD GPU-table batch size: $BATCH_SIZE"
+    elif [[ -n "$BATCH_SIZE" ]]; then
+        if ! [[ "$BATCH_SIZE" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Error: -b must be a positive integer or 'auto' (got '$BATCH_SIZE')." >&2
+            exit 1
+        fi
+        echo "[INFO] Using explicit batch size override: $BATCH_SIZE"
+    else
+        echo "[INFO] Using AMDiffusionBenchmark / Primus YAML train_batch_size (no override)"
+    fi
+fi
+
+diffusion_batch_hydra_args() {
+    if [[ -n "$BATCH_SIZE" ]]; then
+        echo "train_args.train_batch_size=${BATCH_SIZE}"
+    fi
+}
+
+write_diffusion_perf() {
+    local perf_cmd=(python3 "$perf_script" --mode "$TRAINING_MODE" --model "$MODEL_REPO" \
+        --precision "$DATATYPE" --input "$TRAIN_LOG" --output "$PERF_LOG" \
+        --seq_len "$SEQUENCE_LENGTH" --device "$DEVICE" --num_gpus "$WORLD_SIZE")
+    if [[ -n "$BATCH_SIZE" ]]; then
+        perf_cmd+=(--batch_size "$BATCH_SIZE")
+    fi
+    "${perf_cmd[@]}"
+}
+
 if [[ "$TRAINING_MODE" == "pretrain" && "$MODEL_REPO" == "DLRM" ]]; then
     echo "[INFO] Benchmarking DLRM TRAINING"
     if [[ ! -d /workspace/DLRMBenchmark ]]; then
@@ -207,16 +283,9 @@ elif [[ "$TRAINING_MODE" == "posttrain" ]]; then
       cd /workspace/AMDiffusionBenchmark
       rm -rf outputs/runs/*
       SEQUENCE_LENGTH="256"
-      if [[ "$DEVICE" == "MI355X" || "$DEVICE" == "MI350X" ]]; then
-        BATCH_SIZE=16
-      elif [[ "$DEVICE" == "MI300X" || "$DEVICE" == "MI325X" ]]; then
-        BATCH_SIZE=10
-      fi
-      python launcher.py train_args=flux-dev train_args.train_batch_size=$BATCH_SIZE |& tee $TRAIN_LOG
+      python launcher.py train_args=flux-dev $(diffusion_batch_hydra_args) |& tee $TRAIN_LOG
       TRAIN_LOG=$(find ./outputs/runs/ -type f -name "runs_summary.csv")
-      python3 $perf_script --mode $TRAINING_MODE --model $MODEL_REPO \
-        --precision $DATATYPE --input $TRAIN_LOG --output $PERF_LOG \
-        --batch_size $BATCH_SIZE --seq_len $SEQUENCE_LENGTH --device $DEVICE --num_gpus $WORLD_SIZE
+      write_diffusion_perf
     fi
 
     if [ "$MODEL_REPO" == "Stable-Diffusion-XL" ]; then
@@ -231,20 +300,16 @@ elif [[ "$TRAINING_MODE" == "posttrain" ]]; then
       export PYTORCH_HIP_ALLOC_CONF=expandable_segments:True
       SEQUENCE_LENGTH="256"
       if [[ "$DEVICE" == "MI355X" || "$DEVICE" == "MI350X" ]]; then
-        BATCH_SIZE=12
         python launcher.py train_args=stable-diffusion-xl \
           train_args.substitute_sdpa_with_flash_attn=false \
           accelerate_config.fsdp_config.fsdp_backward_prefetch=NO_PREFETCH \
           accelerate_config.fsdp_config.fsdp_sharding_strategy=SHARD_GRAD_OP \
-          train_args.train_batch_size=$BATCH_SIZE |& tee $TRAIN_LOG
+          $(diffusion_batch_hydra_args) |& tee $TRAIN_LOG
       elif [[ "$DEVICE" == "MI300X" || "$DEVICE" == "MI325X" ]]; then
-        BATCH_SIZE=20
-        python launcher.py train_args=stable-diffusion-xl train_args.train_batch_size=$BATCH_SIZE |& tee $TRAIN_LOG
+        python launcher.py train_args=stable-diffusion-xl $(diffusion_batch_hydra_args) |& tee $TRAIN_LOG
       fi
       TRAIN_LOG=$(find ./outputs/runs/ -type f -name "runs_summary.csv")
-      python3 $perf_script --mode $TRAINING_MODE --model $MODEL_REPO \
-        --precision $DATATYPE --input $TRAIN_LOG --output $PERF_LOG \
-        --batch_size $BATCH_SIZE --seq_len $SEQUENCE_LENGTH --device $DEVICE --num_gpus $WORLD_SIZE
+      write_diffusion_perf
     fi
 
     if [ "$MODEL_REPO" == "Mochi-1" ]; then
@@ -256,16 +321,9 @@ elif [[ "$TRAINING_MODE" == "posttrain" ]]; then
       cd /workspace/AMDiffusionBenchmark
       rm -rf outputs/runs/*
       SEQUENCE_LENGTH="256"
-      if [[ "$DEVICE" == "MI355X" || "$DEVICE" == "MI350X" ]]; then
-        BATCH_SIZE=4
-      elif [[ "$DEVICE" == "MI300X" || "$DEVICE" == "MI325X" ]]; then
-        BATCH_SIZE=1
-      fi
-      python launcher.py train_args=mochi-1 train_args.train_batch_size=$BATCH_SIZE |& tee $TRAIN_LOG
+      python launcher.py train_args=mochi-1 $(diffusion_batch_hydra_args) |& tee $TRAIN_LOG
       TRAIN_LOG=$(find ./outputs/runs/ -type f -name "runs_summary.csv")
-      python3 $perf_script --mode $TRAINING_MODE --model $MODEL_REPO \
-        --precision $DATATYPE --input $TRAIN_LOG --output $PERF_LOG \
-        --batch_size $BATCH_SIZE --seq_len $SEQUENCE_LENGTH --device $DEVICE --num_gpus $WORLD_SIZE
+      write_diffusion_perf
     fi
 
     if [ "$MODEL_REPO" == "Hunyuan-video" ]; then
@@ -277,16 +335,9 @@ elif [[ "$TRAINING_MODE" == "posttrain" ]]; then
       cd /workspace/AMDiffusionBenchmark
       rm -rf outputs/runs/*
       SEQUENCE_LENGTH="256"
-      if [[ "$DEVICE" == "MI355X" || "$DEVICE" == "MI350X" ]]; then
-        BATCH_SIZE=3
-      elif [[ "$DEVICE" == "MI300X" || "$DEVICE" == "MI325X" ]]; then
-        BATCH_SIZE=1
-      fi
-      python launcher.py train_args=hunyuan-video train_args.train_batch_size=$BATCH_SIZE |& tee $TRAIN_LOG
+      python launcher.py train_args=hunyuan-video $(diffusion_batch_hydra_args) |& tee $TRAIN_LOG
       TRAIN_LOG=$(find ./outputs/runs/ -type f -name "runs_summary.csv")
-      python3 $perf_script --mode $TRAINING_MODE --model $MODEL_REPO \
-        --precision $DATATYPE --input $TRAIN_LOG --output $PERF_LOG \
-        --batch_size $BATCH_SIZE --seq_len $SEQUENCE_LENGTH --device $DEVICE --num_gpus $WORLD_SIZE
+      write_diffusion_perf
     fi
 
     if [ "$MODEL_REPO" == "Wan2_1-i2v" ]; then
@@ -298,12 +349,9 @@ elif [[ "$TRAINING_MODE" == "posttrain" ]]; then
       cd /workspace/AMDiffusionBenchmark
       rm -rf outputs/runs/*
       SEQUENCE_LENGTH="256"
-      BATCH_SIZE=1
-      python launcher.py train_args=wan2_1-i2v train_args.train_batch_size=$BATCH_SIZE |& tee $TRAIN_LOG
+      python launcher.py train_args=wan2_1-i2v $(diffusion_batch_hydra_args) |& tee $TRAIN_LOG
       TRAIN_LOG=$(find ./outputs/runs/ -type f -name "runs_summary.csv")
-      python3 $perf_script --mode $TRAINING_MODE --model $MODEL_REPO \
-        --precision $DATATYPE --input $TRAIN_LOG --output $PERF_LOG \
-        --batch_size $BATCH_SIZE --seq_len $SEQUENCE_LENGTH --device $DEVICE --num_gpus $WORLD_SIZE
+      write_diffusion_perf
     fi
 
 else
