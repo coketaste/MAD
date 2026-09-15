@@ -35,7 +35,7 @@ parser.add_argument("--model", type=str, help="model name")
 parser.add_argument("--input", type=str, help="path to input file")
 parser.add_argument("--output", type=str, help="path to output file")
 parser.add_argument("--precision", type=str, help="training precision")
-parser.add_argument("--batch_size", type=int, help="batch size used for training")
+parser.add_argument("--batch_size", type=int, default=None, help="batch size used for training")
 parser.add_argument("--seq_len", type=int, help="sequence length used for training")
 parser.add_argument("--device", type=str, help="device architecture (e.g., MI300X, MI355X)")
 parser.add_argument("--num_gpus", type=int, help="number of GPUs used for training")
@@ -50,22 +50,40 @@ print("Precision: ", precision)
 
 SUPPORTED_DIFFUSION_MODELS = ["Flux", "Stable-Diffusion-XL", "Mochi-1", "Hunyuan-video", "Wan2_1-i2v"]
 
+
+def resolve_batch_size(cli_batch_size, frame):
+    """Prefer an explicit CLI value; otherwise read train_batch_size from runs_summary.csv."""
+    if cli_batch_size is not None:
+        return cli_batch_size
+    if frame is None or frame.empty:
+        return None
+    for column in ("train_batch_size", "batch_size"):
+        if column in frame.columns:
+            value = frame.iloc[-1][column]
+            if pd.isna(value):
+                continue
+            return int(value)
+    return None
+
+
 if args.mode == "pretrain" and args.model == "DLRM":
     df = pd.read_csv(input_file)
     recs_per_s_mean = (df.iloc[-1]['Recommendations/s (mean)']).item()
     recs_per_s_cv = (df.iloc[-1]['Recommendations/s (std/mean)']).item()
+    batch_size = resolve_batch_size(args.batch_size, df)
     data = [
-        {'model': args.model, 'performance': recs_per_s_mean, 'metric': 'recs_per_s_mean', 'mode': args.mode, 'precision': precision, 'batch_size': args.batch_size, 'seq_len': args.seq_len, 'device': args.device, 'num_gpus': args.num_gpus},
-        {'model': args.model, 'performance': recs_per_s_cv, 'metric': 'recs_per_s_cv', 'mode': args.mode, 'precision': precision, 'batch_size': args.batch_size, 'seq_len': args.seq_len, 'device': args.device, 'num_gpus': args.num_gpus}
+        {'model': args.model, 'performance': recs_per_s_mean, 'metric': 'recs_per_s_mean', 'mode': args.mode, 'precision': precision, 'batch_size': batch_size, 'seq_len': args.seq_len, 'device': args.device, 'num_gpus': args.num_gpus},
+        {'model': args.model, 'performance': recs_per_s_cv, 'metric': 'recs_per_s_cv', 'mode': args.mode, 'precision': precision, 'batch_size': batch_size, 'seq_len': args.seq_len, 'device': args.device, 'num_gpus': args.num_gpus}
     ]
 
 elif args.mode == "posttrain" and args.model in SUPPORTED_DIFFUSION_MODELS:
     df = pd.read_csv(input_file)
     FPS_per_GPU = float(df.iloc[-1]['avg_fps_gpu'])
     TFLOPS_per_GPU = float(df.iloc[-1]['avg_tflops'])
+    batch_size = resolve_batch_size(args.batch_size, df)
     data = [
-        {'model': args.model, 'performance': FPS_per_GPU, 'metric': 'FPS_per_GPU', 'mode': args.mode, 'precision': precision, 'batch_size': args.batch_size, 'seq_len': args.seq_len, 'device': args.device, 'num_gpus': args.num_gpus},
-        {'model': args.model, 'performance': TFLOPS_per_GPU, 'metric': 'TFLOPS_per_GPU', 'mode': args.mode, 'precision': precision, 'batch_size': args.batch_size, 'seq_len': args.seq_len, 'device': args.device, 'num_gpus': args.num_gpus}
+        {'model': args.model, 'performance': FPS_per_GPU, 'metric': 'FPS_per_GPU', 'mode': args.mode, 'precision': precision, 'batch_size': batch_size, 'seq_len': args.seq_len, 'device': args.device, 'num_gpus': args.num_gpus},
+        {'model': args.model, 'performance': TFLOPS_per_GPU, 'metric': 'TFLOPS_per_GPU', 'mode': args.mode, 'precision': precision, 'batch_size': batch_size, 'seq_len': args.seq_len, 'device': args.device, 'num_gpus': args.num_gpus}
     ]
 
 else:
