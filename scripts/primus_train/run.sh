@@ -209,6 +209,33 @@ LOG_PATH="$RUN_DIR/output/log_mp_pretrain_$(basename "$EXP" .yaml).txt"
 if [[ -f "$LOG_PATH" ]]; then
   extract_script="${script_dir}/extract_primus_perf.py"
   [[ -f "$RUN_DIR/extract_primus_perf.py" ]] && extract_script="$RUN_DIR/extract_primus_perf.py"
-  python3 "$extract_script" "$LOG_PATH" "$RUN_DIR/primus_perf_output.csv" || true
+  extract_args=()
+  if [[ "$suite" == "posttrain" ]]; then
+    # Megatron-Bridge often omits printed TPS; the extractor can derive it from
+    # elapsed ms + global batch size when seq_length/world_size are supplied.
+    seq_length="$(cd "$PRIMUS_ROOT" && python3 -c '
+import sys, yaml
+cfg = yaml.safe_load(open(sys.argv[1])) or {}
+ov = ((cfg.get("modules") or {}).get("post_trainer") or {}).get("overrides") or {}
+sl = ov.get("seq_length")
+print("" if sl is None else sl)
+' "$EXP" 2>/dev/null || true)"
+    vis="${HIP_VISIBLE_DEVICES:-${CUDA_VISIBLE_DEVICES:-}}"
+    if [[ -n "$vis" ]]; then
+      num_gpus="$(awk -F',' '{print NF}' <<< "$vis")"
+    else
+      num_gpus=8
+    fi
+    [[ -n "$seq_length" ]] && extract_args+=(--seq-length "$seq_length")
+    extract_args+=(--num-gpus "$num_gpus")
+  fi
+  set +e
+  python3 "$extract_script" "$LOG_PATH" "$RUN_DIR/primus_perf_output.csv" "${extract_args[@]}"
+  extractcode=$?
+  set -e
+  if [[ "$suite" == "posttrain" && "$extractcode" -ne 0 && "$exitcode" -eq 0 ]]; then
+    echo "[primus_train] posttrain log present but TPS extraction failed" >&2
+    exitcode="$extractcode"
+  fi
 fi
 exit "$exitcode"
