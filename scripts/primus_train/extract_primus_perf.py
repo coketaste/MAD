@@ -22,6 +22,9 @@ Supports two log formats:
    primus/backends/megatron_bridge/patches/training_log/bridge_training_log_patches.py.
    seq_length/world_size come from an inline seq_length: N, the Megatron
    args dump, or --seq-length/--num-gpus.
+   When log_throughput is off, TFLOPS is taken from the last
+   'GPU utilization: <n>MODEL_TFLOP/s/GPU' line only if no
+   compute/throughput-per-GPU value was found.
 
 Output CSV format (model, performance, metric) — one row per metric:
   model,performance,metric
@@ -145,6 +148,8 @@ def extract_metrics(
     seq_inline_re = re.compile(r"seq_length:\s*(\d+)")
     elapsed_re = re.compile(r"elapsed time per iteration \(ms\):\s*([\d.]+)")
     gbs_re = re.compile(r"global batch size:\s*(\d+)")
+    bridge_tflops_re = re.compile(r"GPU utilization:\s*([\d.]+)\s*MODEL_TFLOP")
+    bridge_tflops = None
 
     try:
         with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -180,6 +185,9 @@ def extract_metrics(
                 m = gbs_re.search(line)
                 if m:
                     global_batch = m.group(1).strip()
+                m = bridge_tflops_re.search(line)
+                if m:
+                    bridge_tflops = m.group(1).strip()
 
                 # Megatron 26.5+ TPS (harmonic mean)
                 m = meg_tps_new_re.search(line)
@@ -211,6 +219,8 @@ def extract_metrics(
 
     if tps is None:
         tps = _derive_bridge_tps(elapsed_ms, global_batch, parsed_seq, parsed_gpus)
+    if tflops is None:
+        tflops = bridge_tflops
 
     return {"tps": tps, "tflops": tflops, "mfu": mfu}
 

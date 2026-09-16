@@ -25,6 +25,18 @@ MEGATRON_NEW = """\
 iteration      100/     200 | elapsed time per iteration (ms): 100.0 | compute per GPU (TFLOP/s/GPU): 496.3 (avg 496.1) | tokens/s/GPU inst/harmonic mean: 9640.7/9629.8 | global batch size: 32
 """
 
+BRIDGE_MODEL_TFLOP = """\
+  seq_length ................................ 8192
+  world_size ................................ 8
+Step Time : 0.79s GPU utilization: 62.4MODEL_TFLOP/s/GPU
+ [2026-09-16 15:26:14] iteration       20/     200 | consumed samples:          160 | elapsed time per iteration (ms): 789.8 | learning rate: 2.000000E-06 | global batch size:     8 | lm loss: 3.581810E+00 | loss scale: 1.0 |
+Step Time : 0.79s GPU utilization: 2254.7MODEL_TFLOP/s/GPU
+"""
+
+TORCHTITAN_LINE = """\
+step: 50  loss: 1.2  memory: 10GiB tps: 1,444  tflops: 300.32  mfu: 23.10%
+"""
+
 
 def _write(tmp: Path, text: str) -> Path:
     path = tmp / "train.log"
@@ -62,6 +74,34 @@ def test_printed_megatron_tps_not_overridden() -> None:
         assert metrics["tflops"] == "496.1"
 
 
+def test_bridge_model_tflop_line_fills_tflops() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        log = _write(Path(tmp), BRIDGE_MODEL_TFLOP)
+        metrics = _mod.extract_metrics(str(log))
+        assert metrics["tflops"] == "2254.7"
+        assert abs(float(metrics["tps"]) - (8192 * 8 / 0.7898 / 8)) < 0.15
+
+
+def test_printed_tflops_wins_over_model_tflop_line() -> None:
+    mixed = (
+        MEGATRON_NEW
+        + "Step Time : 0.79s GPU utilization: 9999.9MODEL_TFLOP/s/GPU\n"
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        log = _write(Path(tmp), mixed)
+        metrics = _mod.extract_metrics(str(log))
+        assert metrics["tflops"] == "496.1"
+
+
+def test_torchtitan_line_unchanged() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        log = _write(Path(tmp), TORCHTITAN_LINE)
+        metrics = _mod.extract_metrics(str(log))
+        assert metrics["tps"] == "1444"
+        assert metrics["tflops"] == "300.32"
+        assert metrics["mfu"] == "23.10"
+
+
 def test_cli_writes_csv() -> None:
     import subprocess
 
@@ -83,5 +123,8 @@ if __name__ == "__main__":
     test_bridge_unenriched_computes_tps()
     test_bridge_uses_cli_overrides_when_args_missing()
     test_printed_megatron_tps_not_overridden()
+    test_bridge_model_tflop_line_fills_tflops()
+    test_printed_tflops_wins_over_model_tflop_line()
+    test_torchtitan_line_unchanged()
     test_cli_writes_csv()
     print("extract_primus_perf Megatron-Bridge coverage is correct.")
