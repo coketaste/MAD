@@ -126,9 +126,12 @@ esac
 # (HSA_NO_SCRATCH_RECLAIM=0, vs 1 in base_env.sh) or never sets them at all
 # (NVTE_CK_IS_V3_ATOMIC_FP32), so a MAD run and a documented standalone run were not
 # measuring the same configuration. The values below mirror the published recipes in
-# Primus docs/02-user-guide/megatron-lm-training.md. Every one is ${VAR:-...}-guarded, so
-# an explicit override (madengine --additional-context docker_env_vars, or the shell)
-# still wins.
+# Primus docs/02-user-guide/megatron-lm-training.md and runner/helpers/envs/base_env.sh
+# (primus-cli). examples/run_pretrain.sh defaults NCCL_PXN_DISABLE to 0; primus-cli
+# defaults it to 1. If MAD leaves it unset, run_pretrain.sh keeps PXN enabled and
+# megatron pretrain (including GDN) can drop ~10–15% vs the CLI/QA path (ROCM-31034).
+# Every assignment is ${VAR:-...}-guarded, so an explicit override
+# (madengine --additional-context docker_env_vars, or the shell) still wins.
 arch="${MAD_SYSTEM_GPU_ARCHITECTURE:-}"
 gpu_name="${MAD_SYSTEM_GPU_PRODUCT_NAME:-}"
 
@@ -138,6 +141,10 @@ gpu_name="${MAD_SYSTEM_GPU_PRODUCT_NAME:-}"
 if [[ "$BACKEND" != "MaxText" && "$BACKEND" != "MaxDiffusion" ]]; then
   export HSA_NO_SCRATCH_RECLAIM="${HSA_NO_SCRATCH_RECLAIM:-1}"
 fi
+
+# Match primus-cli / base_env.sh. Must be set before run_pretrain.sh, which uses
+# ${NCCL_PXN_DISABLE:-0} and would otherwise enable PXN.
+export NCCL_PXN_DISABLE="${NCCL_PXN_DISABLE:-1}"
 
 case "$arch" in
   gfx942*)
@@ -149,8 +156,9 @@ case "$arch" in
     ;;
 esac
 
-# MI355X-specific override, from runner/helpers/envs/MI355X.sh.
-if [[ "$gpu_name" == *MI355* ]]; then
+# MI355X.sh sets this for gfx950 APUs. Match on arch as well as product name so
+# MI350X (same gfx950 family) and incomplete product strings still get the CLI env.
+if [[ "$gpu_name" == *MI355* || "$gpu_name" == *MI350* || "$arch" == gfx950* ]]; then
   export RCCL_WARP_SPEED_AUTO="${RCCL_WARP_SPEED_AUTO:-0}"
 fi
 
@@ -162,6 +170,7 @@ fi
 
 echo "[primus_train] suite=$suite backend=$BACKEND arch=${arch:-unknown} gpu=${gpu_name:-unknown}"
 echo "[primus_train] HSA_NO_SCRATCH_RECLAIM=${HSA_NO_SCRATCH_RECLAIM:-<unset>}" \
+     "NCCL_PXN_DISABLE=${NCCL_PXN_DISABLE:-<unset>}" \
      "NVTE_CK_IS_V3_ATOMIC_FP32=${NVTE_CK_IS_V3_ATOMIC_FP32:-<unset>}" \
      "PRIMUS_TURBO_ATTN_V3_ATOMIC_FP32=${PRIMUS_TURBO_ATTN_V3_ATOMIC_FP32:-<unset>}" \
      "NVTE_USE_CAST_TRANSPOSE_TRITON=${NVTE_USE_CAST_TRANSPOSE_TRITON:-<unset>}" \
