@@ -80,6 +80,9 @@ venv.bak/
 # See benchmark/jax_maxtext/README.md for details.
 scripts/Primus/
 
+# Local agent planning artifacts
+docs/superpowers/
+
 # Artifacts left in the repo root by a madengine run. hf_cache matters most: the
 # jax-maxdiffusion wrapper points HF_HOME here so gated FLUX/WAN weights survive between
 # runs, which puts 100+GB one careless `git add -A` away from being staged.
