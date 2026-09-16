@@ -16,6 +16,13 @@ Supports two log formats:
    tokens per GPU (tokens/s/GPU): 9640.7
    throughput per GPU (TFLOP/s/GPU): 496.3
 
+4. Megatron-Bridge (no printed TPS): iteration line with
+   elapsed time per iteration (ms) and global batch size. TPS is
+   seq_length * global_batch_size / elapsed_s / world_size, matching
+   primus/backends/megatron_bridge/patches/training_log/bridge_training_log_patches.py.
+   seq_length/world_size come from an inline seq_length: N, the Megatron
+   args dump, or --seq-length/--num-gpus.
+
 Output CSV format (model, performance, metric) — one row per metric:
   model,performance,metric
   primus_run,9629.8,tokens_per_second
@@ -89,9 +96,35 @@ def _estimate_mfu(tflops: str, log_path: str) -> str | None:
     return f"{(achieved_tflops / (peak_bf16 * multiplier) * 100.0):.2f}"
 
 
-def extract_metrics(log_path: str) -> dict:
+def _derive_bridge_tps(
+    elapsed_ms: str | None,
+    global_batch: str | None,
+    seq_length: int | None,
+    num_gpus: int | None,
+) -> str | None:
+    """tokens/s/GPU = seq_length * global_batch / elapsed_s / world_size."""
+    if elapsed_ms is None or global_batch is None or seq_length is None or not num_gpus:
+        return None
+    try:
+        elapsed_s = float(elapsed_ms) / 1000.0
+        batch = int(global_batch)
+        if elapsed_s <= 0 or batch <= 0 or seq_length <= 0 or num_gpus <= 0:
+            return None
+        return f"{(seq_length * batch / elapsed_s / num_gpus):.1f}"
+    except (TypeError, ValueError):
+        return None
+
+
+def extract_metrics(
+    log_path: str,
+    seq_length: int | None = None,
+    num_gpus: int | None = None,
+) -> dict:
     """Parse log file and return tps, tflops, mfu from the last matching lines."""
     tps = tflops = mfu = None
+    elapsed_ms = global_batch = None
+    parsed_seq = seq_length
+    parsed_gpus = num_gpus
 
     # Torchtitan format regexes
     tt_tps_re = re.compile(r"tps:\s*([0-9][0-9.,eE+-]*)")
@@ -107,9 +140,27 @@ def extract_metrics(log_path: str) -> dict:
     meg_tps_old_re = re.compile(r'tokens per GPU \(tokens/s/GPU\):\s*([\d.]+)')
     meg_tflops_old_re = re.compile(r'throughput per GPU \(TFLOP/s/GPU\):\s*([\d.]+)')
 
+    seq_arg_re = re.compile(r"\bseq_length\s+\.{2,}\s+(\d+)")
+    world_arg_re = re.compile(r"\bworld_size\s+\.{2,}\s+(\d+)")
+    seq_inline_re = re.compile(r"seq_length:\s*(\d+)")
+    elapsed_re = re.compile(r"elapsed time per iteration \(ms\):\s*([\d.]+)")
+    gbs_re = re.compile(r"global batch size:\s*(\d+)")
+
     try:
         with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
+                if parsed_seq is None:
+                    m = seq_arg_re.search(line)
+                    if m:
+                        parsed_seq = int(m.group(1))
+                if parsed_gpus is None:
+                    m = world_arg_re.search(line)
+                    if m:
+                        parsed_gpus = int(m.group(1))
+                m = seq_inline_re.search(line)
+                if m:
+                    parsed_seq = int(m.group(1))
+
                 # Torchtitan format: single line with tps + tflops + mfu
                 if "tps:" in line and "tflops:" in line and "mfu:" in line:
                     m = tt_tps_re.search(line)
@@ -123,39 +174,43 @@ def extract_metrics(log_path: str) -> dict:
                         mfu = m.group(1).strip()
                     continue
 
+                m = elapsed_re.search(line)
+                if m:
+                    elapsed_ms = m.group(1).strip()
+                m = gbs_re.search(line)
+                if m:
+                    global_batch = m.group(1).strip()
+
                 # Megatron 26.5+ TPS (harmonic mean)
                 m = meg_tps_new_re.search(line)
                 if m:
                     tps = m.group(1).strip()
-                    continue
 
                 # Megatron 26.5+ TFLOPS (with avg)
                 m = meg_tflops_avg_re.search(line)
                 if m:
                     tflops = m.group(1).strip()
-                    continue
-
-                # Megatron 26.5+ TFLOPS (no avg)
-                m = meg_tflops_new_re.search(line)
-                if m:
-                    tflops = m.group(1).strip()
-                    continue
+                else:
+                    m = meg_tflops_new_re.search(line)
+                    if m:
+                        tflops = m.group(1).strip()
 
                 # Megatron <=26.4 TPS
                 m = meg_tps_old_re.search(line)
                 if m:
                     tps = m.group(1).strip()
-                    continue
 
                 # Megatron <=26.4 TFLOPS
                 m = meg_tflops_old_re.search(line)
                 if m:
                     tflops = m.group(1).strip()
-                    continue
 
     except OSError as e:
         print(f"Error reading log {log_path}: {e}", file=sys.stderr)
         return {}
+
+    if tps is None:
+        tps = _derive_bridge_tps(elapsed_ms, global_batch, parsed_seq, parsed_gpus)
 
     return {"tps": tps, "tflops": tflops, "mfu": mfu}
 
@@ -165,9 +220,23 @@ def main():
     parser.add_argument("log_path", help="Path to training log (e.g. output/log_mp_pretrain_*.txt)")
     parser.add_argument("output_csv", help="Path to output CSV (e.g. run_directory/primus_perf_output.csv)")
     parser.add_argument("--model-id", default="primus_run", help="Model id for the CSV rows")
+    parser.add_argument(
+        "--seq-length",
+        type=int,
+        default=None,
+        help="Fallback seq_length when the log has no printed TPS (Megatron-Bridge)",
+    )
+    parser.add_argument(
+        "--num-gpus",
+        type=int,
+        default=None,
+        help="Fallback world_size when the log has no printed TPS (Megatron-Bridge)",
+    )
     args = parser.parse_args()
 
-    metrics = extract_metrics(args.log_path)
+    metrics = extract_metrics(
+        args.log_path, seq_length=args.seq_length, num_gpus=args.num_gpus
+    )
     if metrics and metrics.get("mfu") is None and metrics.get("tflops") is not None:
         metrics["mfu"] = _estimate_mfu(metrics["tflops"], args.log_path)
 
@@ -177,6 +246,11 @@ def main():
         print("  - Torchtitan: 'tps: <value>'", file=sys.stderr)
         print("  - Megatron 26.5+: 'tokens/s/GPU inst/harmonic mean: X/Y'", file=sys.stderr)
         print("  - Megatron <=26.4: 'tokens per GPU (tokens/s/GPU): X'", file=sys.stderr)
+        print(
+            "  - Megatron-Bridge: elapsed time + global batch size "
+            "(with seq_length/world_size in the log or --seq-length/--num-gpus)",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     rows = [
