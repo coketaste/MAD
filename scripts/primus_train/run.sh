@@ -162,10 +162,14 @@ if [[ "$gpu_name" == *MI355* || "$gpu_name" == *MI350* || "$arch" == gfx950* ]];
   export RCCL_WARP_SPEED_AUTO="${RCCL_WARP_SPEED_AUTO:-0}"
 fi
 
-# MXFP4 recipe: the Triton cast-transpose kernel costs MXFP4 throughput, so the published
-# MI355X MXFP4 command disables it. Keyed on the config name, which carries the precision.
-if [[ "$(basename "$EXP")" == *MXFP4* ]]; then
-  export NVTE_USE_CAST_TRANSPOSE_TRITON="${NVTE_USE_CAST_TRANSPOSE_TRITON:-0}"
+# MXFP4 on MI355X: Primus docs prefix NVTE_USE_CAST_TRANSPOSE_TRITON=0 on
+# primus_train/megatron_MI355X_llama3.1_8B-MXFP4-pretrain. Image / base_env.sh /
+# run_pretrain.sh default it to 1; ${VAR:-0} keeps that 1 and the Triton
+# cast-transpose kernel drops MXFP4 throughput. Force 0 for this recipe.
+exp_base="$(basename "$EXP")"
+if [[ "${exp_base^^}" == *MXFP4* ]] && \
+   [[ "$gpu_name" == *MI355* || "$gpu_name" == *MI350* || "$arch" == gfx950* || "$EXP" == *"/MI355X/"* ]]; then
+  export NVTE_USE_CAST_TRANSPOSE_TRITON=0
 fi
 
 echo "[primus_train] suite=$suite backend=$BACKEND arch=${arch:-unknown} gpu=${gpu_name:-unknown}"
