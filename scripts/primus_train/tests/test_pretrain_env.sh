@@ -87,6 +87,30 @@ check_mxfp4_override() {
     "NVTE_USE_CAST_TRANSPOSE_TRITON"
 }
 
+# Image / base_env.sh default NVTE_USE_CAST_TRANSPOSE_TRITON=1. The published
+# MI355X MXFP4 command prefixes =0; ${VAR:-0} would keep the pre-set 1.
+check_mxfp4_overrides_preset_one() (
+  export NVTE_USE_CAST_TRANSPOSE_TRITON=1
+  export MAD_SYSTEM_GPU_ARCHITECTURE=gfx950
+  export MAD_SYSTEM_GPU_PRODUCT_NAME="AMD Instinct MI355X"
+  export BACKEND=megatron
+  export EXP="examples/megatron/configs/MI355X/llama3.1_8B-MXFP4-pretrain.yaml"
+  eval "$(performance_block)"
+  assert_eq "0" "$NVTE_USE_CAST_TRANSPOSE_TRITON" \
+    "NVTE_USE_CAST_TRANSPOSE_TRITON"
+)
+
+check_non_mxfp4_keeps_preset_one() (
+  export NVTE_USE_CAST_TRANSPOSE_TRITON=1
+  export MAD_SYSTEM_GPU_ARCHITECTURE=gfx950
+  export MAD_SYSTEM_GPU_PRODUCT_NAME="AMD Instinct MI355X"
+  export BACKEND=megatron
+  export EXP="examples/megatron/configs/MI355X/gdn_1B_BF16-pretrain.yaml"
+  eval "$(performance_block)"
+  assert_eq "1" "$NVTE_USE_CAST_TRANSPOSE_TRITON" \
+    "NVTE_USE_CAST_TRANSPOSE_TRITON"
+)
+
 check_explicit_override() (
   export NCCL_PXN_DISABLE="keep-me"
   export RCCL_WARP_SPEED_AUTO="keep-rccl"
@@ -102,5 +126,7 @@ check_cli_parity_mi355x
 check_cli_parity_gfx950_mi350x
 check_gfx942_atomics
 check_mxfp4_override
+check_mxfp4_overrides_preset_one
+check_non_mxfp4_keeps_preset_one
 check_explicit_override
 echo "primus_train pretrain env matches primus-cli defaults and honors overrides."
