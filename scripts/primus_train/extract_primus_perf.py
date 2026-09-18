@@ -21,7 +21,7 @@ Supports two log formats:
    seq_length * global_batch_size / elapsed_s / world_size, matching
    primus/backends/megatron_bridge/patches/training_log/bridge_training_log_patches.py.
    seq_length/world_size come from an inline seq_length: N, the Megatron
-   args dump, or --seq-length/--num-gpus.
+   args dump, Primus ``world_size=N`` env line, or --seq-length/--num-gpus.
    When log_throughput is off, TFLOPS is taken from the last
    'GPU utilization: <n>MODEL_TFLOP/s/GPU' line only if no
    compute/throughput-per-GPU value was found.
@@ -145,6 +145,9 @@ def extract_metrics(
 
     seq_arg_re = re.compile(r"\bseq_length\s+\.{2,}\s+(\d+)")
     world_arg_re = re.compile(r"\bworld_size\s+\.{2,}\s+(\d+)")
+    # Primus env / YAML dump: "world_size=8", "world_size: 8". Does not match
+    # "world_size: None" or "log_world_size_to_tensorboard:".
+    world_env_re = re.compile(r"\bworld_size[=:]\s*(\d+)")
     seq_inline_re = re.compile(r"seq_length:\s*(\d+)")
     elapsed_re = re.compile(r"elapsed time per iteration \(ms\):\s*([\d.]+)")
     gbs_re = re.compile(r"global batch size:\s*(\d+)")
@@ -159,7 +162,7 @@ def extract_metrics(
                     if m:
                         parsed_seq = int(m.group(1))
                 if parsed_gpus is None:
-                    m = world_arg_re.search(line)
+                    m = world_arg_re.search(line) or world_env_re.search(line)
                     if m:
                         parsed_gpus = int(m.group(1))
                 m = seq_inline_re.search(line)

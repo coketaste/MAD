@@ -130,29 +130,32 @@ checkout is runnable even if it is not listed below. The JAX-based launchers (`m
 `maxdiffusion`) are excluded from this discovery and are instead run via the dedicated
 `jax-maxtext` and `jax-maxdiffusion` benchmarks.
 
-### Performance Environment (applied automatically)
+### Performance Environment (owned by Primus)
 
-`scripts/primus_train/run.sh` applies the architecture-specific performance environment
-that Primus' own `runner/helpers/envs/` layer would set, because the `examples/run_pretrain.sh`
-launcher used for pretraining does not load it. Without this, a MAD run and a standalone
-run of the same config are not measuring the same configuration.
+`scripts/primus_train/run.sh` does not copy architecture-specific performance env.
+It maps `MAD_SYSTEM_GPU_PRODUCT_NAME` / `MAD_SYSTEM_GPU_ARCHITECTURE` to
+`PRIMUS_GPU_MODEL` and launches `primus-cli direct` (`runner/primus-cli` on
+v26.6, repo-root `primus-cli` on v26.7+), which sources
+`runner/helpers/envs/base_env.sh` plus `runner/helpers/envs/<GPU_MODEL>.sh`.
+Per-config overrides use a top-level `env:` block in the experiment YAML
+(applied by Primus `TrainRuntime`).
 
-| Variable | Applied when | Value |
+| Variable | Where Primus sets it | Value |
 | --- | --- | --- |
-| `HSA_NO_SCRATCH_RECLAIM` | all non-JAX backends | `1` |
-| `NVTE_CK_IS_V3_ATOMIC_FP32` | `gfx942` (MI300X/MI325X) | `1` |
-| `PRIMUS_TURBO_ATTN_V3_ATOMIC_FP32` | `gfx942` (MI300X/MI325X) | `1` |
-| `RCCL_WARP_SPEED_AUTO` | MI355X | `0` |
-| `NVTE_USE_CAST_TRANSPOSE_TRITON` | `*MXFP4*` configs | `0` |
+| `HSA_NO_SCRATCH_RECLAIM` | `base_env.sh` | `1` |
+| `NCCL_PXN_DISABLE` | `base_env.sh` | `1` |
+| `NVTE_CK_IS_V3_ATOMIC_FP32` | `MI300X.sh` / `MI325X.sh` (gfx942) | `1` |
+| `PRIMUS_TURBO_ATTN_V3_ATOMIC_FP32` | `MI300X.sh` / `MI325X.sh` (gfx942) | `1` |
+| `RCCL_WARP_SPEED_AUTO` | `MI355X.sh` / `MI350X.sh` (gfx950) | `0` |
+| `NVTE_USE_CAST_TRANSPOSE_TRITON` | YAML `env:` on MXFP4 configs | `0` |
 
-Each is applied only if unset, so anything you pass via `docker_env_vars` (below) or export
-yourself takes precedence. The effective values are echoed as `[primus_train] ...` at the
-top of the run log.
+`${VAR:-…}` in the GPU files (and YAML `env:` applied later) still lets
+`docker_env_vars` or a host export take precedence.
 
 ### Passing Environment Variables to the Container
 
 To pass environment variables into the running container — secrets, or an override of the
-table above — use the `docker_env_vars` field in `--additional-context`. Note that a model
+Primus defaults above — use the `docker_env_vars` field in `--additional-context`. Note that a model
 card `env` / `env_vars` block is **not** read by madengine on the local Docker path:
 
 ```bash
