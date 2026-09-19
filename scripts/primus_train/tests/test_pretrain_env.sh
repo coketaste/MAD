@@ -110,25 +110,26 @@ check_primus_gpu_env_files() {
     'RCCL_WARP_SPEED_AUTO=\$\{RCCL_WARP_SPEED_AUTO:-0\}'
 }
 
-yaml_env_has_cast_transpose_zero() {
-  local yaml="$1"
-  python3 -c '
-import sys, yaml
-cfg = yaml.safe_load(open(sys.argv[1])) or {}
-env = cfg.get("env") or {}
-val = str(env.get("NVTE_USE_CAST_TRANSPOSE_TRITON", ""))
-if val != "0":
-    raise SystemExit(f"{sys.argv[1]}: expected env.NVTE_USE_CAST_TRANSPOSE_TRITON=0, got {val!r}")
-' "$yaml"
-}
-
 check_mxfp4_yaml_env() {
+  # Optional: stock release/v26.7 MXFP4 YAMLs do not set this (base_env.sh defaults
+  # to 1). Skip unless a checkout actually declares env.NVTE_USE_CAST_TRANSPOSE_TRITON.
   local llama_yaml="$PRIMUS_ROOT/examples/megatron/configs/MI355X/llama3.1_8B-MXFP4-pretrain.yaml"
   local flux_yaml="$PRIMUS_ROOT/examples/megatron/configs/MI355X/diffusion/flux_12b_ddp_energon_schnell_resample_te_spec_mxfp4.yaml"
   [[ -f "$llama_yaml" && -f "$flux_yaml" ]] || return 0
   python3 -c 'import yaml' 2>/dev/null || return 0
-  yaml_env_has_cast_transpose_zero "$llama_yaml"
-  yaml_env_has_cast_transpose_zero "$flux_yaml"
+  python3 -c '
+import sys, yaml
+checked = 0
+for path in sys.argv[1:]:
+    env = (yaml.safe_load(open(path)) or {}).get("env") or {}
+    if "NVTE_USE_CAST_TRANSPOSE_TRITON" not in env:
+        continue
+    checked += 1
+    val = str(env.get("NVTE_USE_CAST_TRANSPOSE_TRITON"))
+    if val != "0":
+        raise SystemExit(f"{path}: expected env.NVTE_USE_CAST_TRANSPOSE_TRITON=0, got {val!r}")
+raise SystemExit(0)
+' "$llama_yaml" "$flux_yaml"
 }
 
 check_gpu_model_mapping() {
