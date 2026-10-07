@@ -6,13 +6,13 @@ author: Stephen Shao
 thumbnail: 'timeline-overview.png'
 tags: AI/ML, Optimization, Performance, PyTorch
 target_audience: ML engineers who train with Primus on AMD Instinct GPUs and want a repeatable profiling command
-key_value_propositions: One madengine run selects the profiler for a Primus tag. After the job, TraceLens files show the timeline, kernel mix, roofline, and collective size.
+key_value_propositions: One madengine command per lens, on the same Primus tag. The same report then lines up timeline, kernel mix, roofline, and collective size across those traces.
 category: Software tools & optimizations
 language: English
 myst:
   html_meta:
     "author": "Stephen Shao"
-    "description lang=en": "Use madengine run to profile a Primus job one lens at a time, then read the traces for timeline, kernels, and collective size."
+    "description lang=en": "Collect one Primus trace type per madengine run, then compare and analyze those traces in one set of TraceLens tables."
     "keywords": "madengine, Primus, TraceLens, rocprofv3, rocm-trace-lite, MI300X, PyTorch profiler"
     "property=og:locale": "en_US"
     "amd_category": "Developer Resources"
@@ -30,7 +30,7 @@ myst:
 
 A slow Primus step can sit in the operators, in the GPU kernels those operators launch, or in the gap between them. Each layer has its own collector, and stacking collectors in one run mixes their overhead into the step time.
 
-This is the hands-on. You keep one model tag and change one field in `--additional-context`. That field selects the lens. After the job, the sections below say which file to open and which number is the training step. The worked examples are four single-node jobs on 8× AMD Instinct MI300X, from the image `rocm/primus:v26.7`.
+This is the hands-on. You keep one model tag and change one field in `--additional-context`. That field selects the lens, and each lens is its own `madengine run`, so the collectors stay unmixed. `madengine report tracelens` then writes one set of CSV names from the framework trace. The tables below compare those traces. The sections say which file to open and which number is the training step. The worked examples are four single-node jobs on 8× AMD Instinct MI300X, from the image `rocm/primus:v26.7`.
 
 | Workload | Backend | Tag |
 | --- | --- | --- |
@@ -55,7 +55,7 @@ Four tools cover the path from the operator to the kernel. The first three colle
 
 ![Flowchart of one madengine run with three profiler columns. Set one field in ctx.json, run madengine, copy run_directory aside, then open that column.](images/madengine-primus-flow.png)
 
-*Figure 1. One field in `ctx.json`, then one `madengine run`. Copy `run_directory` aside before the next run. The framework column is the one that continues to `madengine report tracelens`. For TorchTitan, rename `rankN_trace.json` first.*
+*Figure 1. One field in `ctx.json`, then one `madengine run`. Copy `run_directory` aside before the next run so each lens is still on disk when you compare them. The framework column is the one that continues to `madengine report tracelens`. For TorchTitan, rename `rankN_trace.json` first.*
 
 | Lens | Question it answers | How you select it | Where the files land |
 | --- | --- | --- | --- |
@@ -64,6 +64,8 @@ Four tools cover the path from the operator to the kernel. The first three colle
 | Kernel dispatch | Did every GPU record kernel launches? | `"tools": [{"name": "rocm_trace_lite"}]` | `rocm_trace_lite_output/` |
 | Runtime kernels | What kernel names did rocprofv3 record? | `"tools": [{"name": "rocprofv3_lightweight", ...}]` | `rocprof_output/` |
 | Analysis | How do I read the trace? | `madengine report tracelens` on the host | `gpu_timeline.csv`, `ops_summary*.csv`, `GEMM.csv`, `nccl_summary_long.csv` |
+
+The tag, the image, and `ctx.json` stay fixed across these runs. You change the lens. The host report writes the same columns from each framework trace, which is how the later tables compare models. Figure 2 compares the collectors on that shared baseline.
 
 ## Setup
 
@@ -82,7 +84,7 @@ mkdir -p /path/to/cache/hf /path/to/cache/primus_data
 cp -a run_directory "$HOME/traces/flux-baseline"
 ```
 
-Save the context below as `ctx.json`. Every later command is this file plus one edit.
+Save the context below as `ctx.json`. Every later command is this file plus one edit: profiler flags on `model_args`, or a single `tools` entry. Leave the image, the mounts, and the tag alone. A step-time ratio is then the lens, measured on the same job.
 
 ```json
 {
@@ -115,7 +117,7 @@ madengine run \
   --additional-context-file ctx.json
 ```
 
-Read the step time from the training log in `run_directory/output`, steps 5 and later. FLUX logs images/s on the last rank. `madengine run` still exits non-zero for FLUX, because the perf extractor looks for tokens/s. The log and the traces are written.
+Read the step time from the training log in `run_directory/output`, steps 5 and later. FLUX logs images/s on the last rank. `madengine run` still exits non-zero for FLUX, because the perf extractor looks for tokens/s. The log and the traces are written. Table 1 is the denominator for the rest of the post. Each later lens repeats this `madengine run` with one field changed.
 
 | Workload | Steady step | What the training log reported |
 | --- | ---: | --- |
@@ -126,30 +128,35 @@ Read the step time from the training log in `run_directory/output`, steps 5 and 
 
 Table 1. Unprofiled step time. Qwen3-32B is reported as a step time. The Megatron-Bridge perf extractor's TFLOP/s and MFU are above the published MI300X peak, so they are left out. The log TFLOP/s on FLUX, Qwen3-30B-A3B, and Qwen3-0.6B divides model FLOPs by the whole step. Qwen3-0.6B's 272 TFLOP/s and 21% MFU are the training log's own medians, and both sit under the published peak.
 
+The later tables set one lens against these four steps. FLUX's captured window is mostly idle, and its kernel time is elementwise. Qwen3-32B is fused linears plus a 62.5 GB gradient exchange. Qwen3-30B-A3B is the window you can quote in milliseconds: about 95% of the unprofiled step lines up with GPU compute. Qwen3-0.6B's window is exposed FSDP communication around `aten::mm` and attention.
+
 ## Run the framework lens
 
 Edit `model_args` in `ctx.json`. Keep the config path and the iteration flags. Append the profiler flags. The blocks in this section are Megatron and Megatron-Bridge. `profile_step_end 12` records steps 10 and 11. TorchTitan uses a different schedule, in the TorchTitan section below.
 
-Rank 0, with shapes. This is the trace TraceLens uses for the timeline, the operator mix, and the roofline.
+Rank 0, with shapes. This is one run. Append these flags to `model_args`, run the same `madengine run` as the baseline, and copy `run_directory` aside. This trace feeds the timeline, the operator mix, and the roofline.
 
 ```text
 --profile True --use_pytorch_profiler True --profile_step_start 10 --profile_step_end 12 --torch_profiler_with_stack False --torch_profiler_record_shapes True --profile_ranks [0]
 ```
 
-All eight ranks, shapes off. This is the collective report. Shapes off keeps the eight files smaller. Message size is still recorded.
+On the host:
+
+```bash
+madengine report tracelens --root run_directory --mode pytorch --gpu-arch MI300X
+```
+
+All eight ranks, shapes off. This is a second run. Copy the rank-0 directory aside first, because the next `madengine run` deletes `run_directory`. Replace the flags with the block below. Shapes off keeps the eight files smaller. Message size is still recorded. On the Megatron jobs this window is the expensive one: 6.58× (FLUX), 4.35× (Qwen3-32B), and 3.37× (Qwen3-30B-A3B) the Table 1 step. TorchTitan records every rank in a single run, so that section does not split these two.
 
 ```text
 --profile True --use_pytorch_profiler True --profile_step_start 10 --profile_step_end 12 --torch_profiler_with_stack False --torch_profiler_record_shapes False --profile_ranks [0,1,2,3,4,5,6,7]
 ```
 
-Run the same `madengine run` as the baseline. Then, on the host:
-
 ```bash
-madengine report tracelens --root run_directory --mode pytorch --gpu-arch MI300X
 madengine report tracelens --root run_directory --mode collective --world-size 8
 ```
 
-`--gpu-arch MI300X` labels a GEMM compute-bound or memory-bound. Pass `--python` if TraceLens is installed in another interpreter. The PyTorch report writes a `*_csv` directory next to the trace. Open these files in order:
+Use these two report commands on every framework trace in the post. The CSV names stay the same when the model changes, so the four jobs can share one table. `--gpu-arch MI300X` labels a GEMM compute-bound or memory-bound. Pass `--python` if TraceLens is installed in another interpreter. The PyTorch report writes a `*_csv` directory next to the trace. Open these files in order:
 
 | File | What you learn |
 | --- | --- |
@@ -161,7 +168,7 @@ madengine report tracelens --root run_directory --mode collective --world-size 8
 | `GroupedGEMM_fwd.csv` | The same roofline for grouped GEMMs, when the model has them |
 | `nccl_summary_long.csv` | Collective name, dtype, and message size |
 
-Megatron-Bridge uses a different flag spelling. Replace the two blocks above with:
+Megatron-Bridge uses a different flag spelling. Replace the rank-0 block with the first block here, and the eight-rank block with the second:
 
 ```text
 --profiling.use_pytorch_profiler True --profiling.profile_step_start 10 --profiling.profile_step_end 12 --logger.tensorboard_dir /myworkspace/run_directory/output/tensorboard --profiling.record_shapes True --profiling.profile_ranks [0]
@@ -189,11 +196,11 @@ madengine run \
 
 Open `rocm_trace_lite_output/`. A useful trace has `KernelExecution` rows on GPU ids 0 through 7. `UserMarker` rows at gpu id −1 are host markers. A trace that contains only those markers did not capture GPU kernels.
 
-Each model's own rocm-trace-lite run, compared with that model's baseline, was 1.17× (FLUX), 1.28× (Qwen3-32B), 1.38× (Qwen3-30B-A3B), and 1.35× (Qwen3-0.6B). The traces held 931,538, 4,073,773, 23,078,713, and 674,577 kernel dispatches. That step time is the cost of the tool. The baseline in Table 1 remains the training step.
+Each model's own rocm-trace-lite run, compared with that model's baseline, was 1.17× (FLUX), 1.28× (Qwen3-32B), 1.38× (Qwen3-30B-A3B), and 1.35× (Qwen3-0.6B). The traces held 931,538, 4,073,773, 23,078,713, and 674,577 kernel dispatches, startup included. Divided by the iteration count of that run, that is about 9,300 (FLUX, 100 steps), 136,000 (Qwen3-32B, 30 steps), 769,000 (Qwen3-30B-A3B, 30 steps), and 22,500 (Qwen3-0.6B, 30 steps) dispatches per step. Against the Table 1 step, FLUX launches about 200,000 kernels a second and Qwen3-30B-A3B about 60,000. The dispatch trace and the timeline agree: FLUX is many short kernels, and the MoE step is fewer, longer ones. Each ratio is that model's baseline command plus the `rocm_trace_lite` entry, so the stretch is the collector. The baseline in Table 1 remains the training step.
 
 ## Run rocprofv3
 
-Use a separate run. The command measured here is kernel and memory-copy trace, written as JSON. The stock `rocprofv3_lightweight` preset also passes `--hip-trace`, which on FLUX recorded many more host API rows than kernels. The override below leaves that flag off. The trailing `--` is required.
+Use a separate run. Same tag, same `ctx.json`, different `tools` entry, so these kernel names can be checked against the framework lens from the previous run. The command measured here is kernel and memory-copy trace, written as JSON. The stock `rocprofv3_lightweight` preset also passes `--hip-trace`, which on FLUX recorded many more host API rows than kernels. The override below leaves that flag off. The trailing `--` is required.
 
 ```json
 "tools": [{
@@ -204,22 +211,34 @@ Use a separate run. The command measured here is kernel and memory-copy trace, w
 
 rocprofv3 traces the whole process. For the two language models, `--train_iters 20` keeps the JSON to about 1 GB per rank on Qwen3-30B-A3B. FLUX stayed at 100 iterations. The wrapper stores the files under `rocprof_output/` even though Primus changes directory before the training process starts.
 
-The cropped steps 10–11 were 6.57×, 4.33×, and 3.36× the baseline step. Kernel durations from that window agree with the rank-0 PyTorch GEMMs on FLUX, within 3.7%. They miss that bar on Qwen3-32B attention and on the short FP8 tiles of Qwen3-30B-A3B. On Qwen3-0.6B the same command covers the whole 20-step run: the median step is 2.95× the 329 ms baseline, each rank's JSON is about 80 MB, and the names are Cijk GEMMs, AITER FMHA forward, CK-tile FMHA backward, and `ncclDevKernel_Generic`. Use this output to confirm kernel names. Keep durations from Table 1 and from the MoE PyTorch window.
+The cropped steps 10–11 were 6.57× (FLUX), 4.33× (Qwen3-32B), and 3.36× (Qwen3-30B-A3B) the baseline step. On FLUX, kernel durations from that window agree with the rank-0 PyTorch GEMM medians within 3.7%. They miss that bar on Qwen3-32B attention and on the short FP8 tiles of Qwen3-30B-A3B. On Qwen3-0.6B the same command covers the whole 20-step run: the median step is 2.95× the 329 ms baseline, each rank's JSON is about 80 MB, and the names are Cijk GEMMs, AITER FMHA forward, CK-tile FMHA backward, and `ncclDevKernel_Generic`. Use this output to confirm kernel names. Keep durations from Table 1 and from the MoE PyTorch window.
 
 ## Repeat the playbook on Qwen3-32B and Qwen3-30B-A3B
 
-Run each of these jobs on its own. Copy `ctx.json`, change `--tags` and `model_args`, and repeat the baseline, the framework lens, rocm-trace-lite, and rocprofv3. One tag per command. Copy `run_directory` aside first. The next command deletes it.
+The four lenses transfer. Copy `ctx.json`, change `--tags` and `model_args`, and run baseline, framework, rocm-trace-lite, and rocprofv3 again. One tag per command. Copy `run_directory` aside first. The next command deletes it. The report still writes the same filenames, so these two jobs become columns next to FLUX.
 
 | Workload | `--tags` | Baseline `model_args` |
 | --- | --- | --- |
 | Qwen3-32B SFT | `primus_train/megatron_bridge_MI300X_qwen3_32b_sft_posttrain` | `--config_path examples/megatron_bridge/configs/MI300X/qwen3_32b_sft_posttrain.yaml --train_iters 30 --log_interval 1 --lr_warmup_iters 5` |
 | Qwen3-30B-A3B | `primus_train/megatron_MI300X_qwen3_30B_A3B-FP8-pretrain` | `--config_path examples/megatron/configs/MI300X/qwen3_30B_A3B-FP8-pretrain.yaml --train_iters 30 --log_interval 1` |
 
+Qwen3-32B, with that row's `model_args`:
+
+```bash
+madengine run \
+  --tags primus_train/megatron_bridge_MI300X_qwen3_32b_sft_posttrain \
+  --keep-model-dir \
+  --timeout 7200 \
+  --additional-context-file ctx.json
+```
+
+Qwen3-30B-A3B is the same command with its tag from the table.
+
 Qwen3-30B-A3B uses the same Megatron profiler flags as FLUX. Qwen3-32B uses the Megatron-Bridge flags in the framework section. For rocprofv3 on either language model, set `--train_iters 20` and keep `--lr_warmup_iters 5` on Qwen3-32B.
 
 ## Run TorchTitan Qwen3-0.6B
 
-Keep the four lenses. This job has its own section because the schedule, the trace names, and the tokenizer mount are extra steps.
+Keep the four lenses on a new tag. This job has its own section because the schedule, the trace names, and the tokenizer mount are extra steps. Collection is still one `madengine run` per lens. After the rename below, the host report writes the same CSVs, and this job is the fourth column in the tables.
 
 The profiler flags are a schedule, not `--profile_step_start`. That one run records every rank. The files are named `rankN_trace.json`, and `madengine report tracelens` looks for `*.pt.trace.json`, so rename them before the report. The prepare step also expects the tokenizer files on a mount.
 
@@ -231,6 +250,7 @@ Add the tokenizer directory to `docker_mounts`, and keep the cache mount from th
 
 ```json
 "docker_mounts": {
+  "/myworkspace/.blog_cache": "/path/to/cache",
   "/workspace/Primus/data/torchtitan/Qwen3-0.6B": "/path/to/qwen3-0.6B-tokenizer"
 }
 ```
@@ -309,12 +329,14 @@ Read this before treating a CSV cell as the training step.
 | Baseline step, two runs | The training step |
 | Log throughput on FLUX, Qwen3-30B-A3B, and Qwen3-0.6B | The training log's own rate. On Qwen3-0.6B, 272 TFLOP/s and 21% MFU sit under the published MI300X peak |
 | Qwen3-32B extractor TFLOP/s and MFU | Leave them out. They sit above the published MI300X peak |
-| Collective message size | The payload. Leave `dur_mean`, and any bandwidth from it, unread. The 8-rank window is 6.58×, 4.35×, and 3.37×. On Qwen3-0.6B the eight ranks are the same 2.98× capture as rank 0 |
+| Collective message size | The payload. Leave `dur_mean`, and any bandwidth from it, unread. The 8-rank window is 6.58× on FLUX, 4.35× on Qwen3-32B, and 3.37× on Qwen3-30B-A3B. On Qwen3-0.6B the eight ranks are the same 2.98× capture as rank 0 |
 | Qwen3-30B-A3B kernel time and mix | The kernels. The rank-0 window is 1.20×, and steps outside it match the baseline to 0.03% |
-| Category shares on FLUX, Qwen3-32B, and Qwen3-0.6B | Shares of a slowed window (1.92×, 1.79×, and 2.98×) |
+| Category shares on FLUX, Qwen3-32B, and Qwen3-0.6B | Shares of a slowed rank-0 window: 1.92× on FLUX, 1.79× on Qwen3-32B, and 2.98× on Qwen3-0.6B |
 | Idle and exposed-communication percent | Shares of the captured window |
 | `GEMM.csv` TFLOP/s | A kernel rate for the shapes TraceLens modeled. On Qwen3-0.6B that rate is inside the 2.98× window |
 | rocprofv3 kernel durations | Leave them out, except as a cross-check of the FLUX GEMM medians |
+
+Figure 2 is the collector comparison. Every bar is one `madengine run` of one tag. The baseline is Table 1. The other bars are that command with one field changed.
 
 ![Step time relative to the unprofiled baseline for FLUX, Qwen3-32B, Qwen3-30B-A3B, and Qwen3-0.6B, across the rank-0 PyTorch window, the 8-rank PyTorch window, rocm-trace-lite, and rocprofv3.](images/lens-cost.png)
 
@@ -353,7 +375,7 @@ The pictures below are those kernel slices. FLUX and Qwen3-30B-A3B come from `*.
 
 ![A 6.3 millisecond zoom of the Qwen3-30B-A3B compute stream. One attention kernel fills most of the window, followed by a GEMM and a grouped GEMM.](images/timeline-moe-zoom.png)
 
-*Figure 5. Qwen3-30B-A3B, 6.3 ms on the compute stream. The wide red slice is one attention kernel, 4.2 ms. A GEMM and a grouped GEMM follow it. Table 3 is the same view as shares: 26% attention and 17% grouped GEMM.*
+*Figure 5. Qwen3-30B-A3B, 6.3 ms on the compute stream. The wide red slice is one `aiter::mha_bwd` kernel, 4.2 ms, and that op is 25.8% of kernel time. A GEMM and a grouped GEMM follow it. Table 3 is the category view: 30.4% attention and 17% grouped GEMM.*
 
 ![Qwen3-0.6B rank-0 window. The compute stream is broken by gaps. The NCCL stream is busy across those same gaps.](images/timeline-qwen06.png)
 
@@ -369,7 +391,7 @@ The pictures below are those kernel slices. FLUX and Qwen3-30B-A3B come from `*.
 
 ![Stacked bars of direct kernel time for the four example runs. Fused linears dominate FLUX and Qwen3-32B. Attention and grouped GEMMs dominate Qwen3-30B-A3B. aten::mm and attention dominate Qwen3-0.6B.](images/kernel-mix.png)
 
-*Figure 8. Share of direct kernel time on the four example runs. Table 3 lists the same shares. On Qwen3-0.6B the tan band is about 1%, and the green `aten::mm` band is the GEMM time. The light band on that job is Triton plus `record_param_comms` and the multi-tensor kernels.*
+*Figure 8. Share of direct kernel time on the four example runs. Table 3 lists these shares, and its last row is the smaller bands. On Qwen3-0.6B the tan band is about 1%, and the green `aten::mm` band is the GEMM time. The light band on that job is Triton plus `record_param_comms` and the multi-tensor kernels.*
 
 | Category | FLUX 535M | Qwen3-32B | Qwen3-30B-A3B | Qwen3-0.6B |
 | --- | ---: | ---: | ---: | ---: |
@@ -381,8 +403,9 @@ The pictures below are those kernel slices. FLUX and Qwen3-30B-A3B come from `*.
 | Expert dispatch and combine | — | — | 11.7% | — |
 | Reduce | 5.4% | 3.8% | 1.0% | 1.0% |
 | Norm | 3.1% | — | — | 0.05% |
+| Smaller categories | 4.1% | 2.0% | 1.3% | 12.6% |
 
-Table 3: The same shares as Figure 8. Attention on Qwen3-30B-A3B is `SDPA_bwd` 25.8% plus `SDPA_fwd` 4.6%. On Qwen3-0.6B it is `aiter::mha_bwd` 34.7% plus `aiter::fmha_v3_fwd` 6.8%. The 1.0% "other" on that job is not a fused linear. Triton, 8.4%, sits in the light band of Figure 8 with `record_param_comms` (2.7%) and the multi-tensor kernels (1.5%).
+Table 3: The categories in Figure 8. The last row is whatever the named rows omit, so a column sums to about 100. Attention on Qwen3-30B-A3B is `aiter::mha_bwd` 25.8% plus `aiter::fmha_v3_fwd` 4.6%. On Qwen3-0.6B it is `aiter::mha_bwd` 34.7% plus `aiter::fmha_v3_fwd` 6.8%. The 1.0% "other" on that job is not a fused linear. Its 12.6% remainder is Triton (8.4%), `record_param_comms` (2.7%), and the multi-tensor kernels (1.5%), the light band in Figure 8.
 
 Then open `ops_summary.csv` and sort by kernel time. The leaf ops that hold these jobs:
 
@@ -407,7 +430,7 @@ Then open `ops_summary.csv` and sort by kernel time. The leaf ops that hold thes
 
 Table 4: Largest leaf operations, two captured steps, rank 0. `ops_unique_args.csv` is the next file when you want the shape behind one of these names.
 
-FLUX spends the window on fused linears and on many short elementwise kernels. Qwen3-32B spends it on fused layer-norm linears and activation checkpointing. Qwen3-30B-A3B spends it on AITER attention and Primus Turbo grouped GEMMs. Its expert exchange is `MoEDispatch` and `MoECombineBackward` (2.7% and 3.5% of kernel time). That traffic is overlapped with compute, which is why the NCCL bucket in Table 2 is 0.14%. Qwen3-0.6B spends the window on `aten::mm` and AITER attention. The 56 attention calls are the 28 layers across the two active steps. Figure 7 is one of those attention kernels.
+FLUX spends the window on fused linears and on many short elementwise kernels. Qwen3-32B spends it on fused layer-norm linears and activation checkpointing. Qwen3-30B-A3B spends it on AITER attention and Primus Turbo grouped GEMMs. Its expert-exchange category is 11.7% of kernel time. The two largest pieces are `MoEDispatch` and `MoECombineBackward`, 2.7% and 3.5%. That traffic is overlapped with compute, which is why the NCCL bucket in Table 2 is 0.14%. Qwen3-0.6B spends the window on `aten::mm` and AITER attention. The 56 attention calls are the 28 layers across the two active steps. Figure 7 is one of those attention kernels.
 
 ## Read the roofline
 
@@ -460,13 +483,15 @@ Qwen3-32B's 62.5 GB fp32 reduce-scatter is a gradient buffer across a group of 4
 
 ## Summary
 
-**FLUX is a short step.** The GPU is computing for about a third of the 46.3 ms baseline. Of the kernel time in the window, 43% is elementwise and 31% is `_Linear` plus `_LinearBackward`. The large GEMM is compute-bound. The `M=2` GEMMs are memory-bound. rocm-trace-lite adds about 17% to the whole run. The PyTorch window and the rocprofv3 window are several times the step, so their idle time is the profiler.
+**FLUX is a short step.** Inside the rank-0 window, compute is 17.5% and idle is 71.5%, and that window is 1.92× the 46.3 ms baseline. Of the kernel time in the window, 43% is elementwise and 31% is `_Linear` plus `_LinearBackward`. The large GEMM is compute-bound. The `M=2` GEMMs are memory-bound. The 15.8 ms of non-collective kernels is about a third of the 46.3 ms step. That check is not the idle time of the unprofiled step. rocm-trace-lite adds about 17% to the whole run. The PyTorch window and the rocprofv3 window are several times the step, so their idle time is the profiler.
 
-**Qwen3-32B is fused linears plus one large gradient exchange.** Kernel time sits in `_LayerNormLinear` and `_Linear`, with activation checkpointing beside them. The GEMMs TraceLens could roofline are fast and short on `M`. The data-parallel payload is 62.5 GB of fp32. Quote the size. The latency beside it was recorded inside a 4.4× window.
+**Qwen3-32B is fused linears plus one large gradient exchange.** Kernel time sits in `_LayerNormLinear` and `_Linear`, with activation checkpointing beside them. The GEMMs TraceLens could roofline are fast and short on `M`. The data-parallel payload is 62.5 GB of fp32. Quote the size. The latency beside it was recorded inside the 4.35× eight-rank window.
 
 **Qwen3-30B-A3B is the kernel view you can quote in milliseconds.** About 95% of the unprofiled step lines up with GPU compute. AITER attention backward is 26% of kernel time, grouped GEMMs are the next family, and expert dispatch and combine are about 12% together. Two dense bf16 GEMMs run near 590 TFLOP/s. The 229 TFLOP/s in the log is the whole step.
 
 **Qwen3-0.6B is the TorchTitan host report.** The step to quote is 329 ms. Inside the 2.98× window the kernels are `aten::mm` and AITER attention, and the FSDP payloads are 60 MB and 30 MB. Figure 2 is the collector cost: rocm-trace-lite at 1.35×, and rocprofv3 at 2.95× across the whole 20-step run.
+
+Those four readings come from one workflow. Hold the tag and `ctx.json` fixed, change one field per `madengine run`, and copy `run_directory` aside. `madengine report tracelens` writes one set of CSV names. Read those files side by side.
 
 ## Additional resources
 
