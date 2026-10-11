@@ -36,6 +36,7 @@ Below are blueprints of supported models along with their documentation.
   - [Tag Functionality](#tag-functionality)
   - [Timeout Configuration](#timeout-configuration)
   - [Debugging Options](#debugging-options)
+- [Claude Code Integration](#claude-code-integration)
 - [Contributing](#contributing)
   - [Adding New Models](#adding-new-models)
   - [Model Configuration](#model-configuration)
@@ -155,6 +156,19 @@ madengine run --tags model_name --clean-docker-cache
 ```
 
 > ⚠️ **Warning**: When using `--keep-alive`, you must manually stop and remove the container before running the same model again.
+
+## Claude Code Integration
+
+Skills, agents, and workflows under `.claude/` drive madengine for training and inference. See `CLAUDE.md` and `mad-automation-howto.html`.
+
+| Skill | Invocation | What it does |
+|-------|-----------|--------------|
+| `/mad-profile <tag> [operator\|dispatch\|kernel]` | Manual | Profile at the operator (TraceLens), dispatch (rocm-trace-lite), or kernel (rocprofv3) depth |
+| `/mad-tune <tag>` | Manual | Measure-change-measure loop |
+| `/mad-tune-search` | Workflow | Operator, then dispatch, then kernel, then clean measurements |
+| `/primus-projection <primus-training-tag>` | Manual | Expected tokens/s and memory fit for a Primus training config only |
+
+`/primus-projection` and `mad-tune-search --expect` apply to Primus training tags such as `primus_train/megatron_MI355X_deepseek_v4_flash-BF16-pretrain`. They do not apply to vLLM or other inference tags.
 
 ## Contributing
 
