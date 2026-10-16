@@ -6,13 +6,13 @@ author: Stephen Shao
 thumbnail: 'v4-timeline.png'
 tags: AI/ML, Optimization, Performance, PyTorch
 target_audience: ML engineers who train a DeepSeek-V4-Flash proxy with Primus on AMD Instinct GPUs and want the profilers to name the next optimization
-key_value_propositions: One madengine command per lens, on one DeepSeek-V4-Flash tag. The same report lines the traces up, and each trace names the next one-field run.
+key_value_propositions: One madengine command per lens, on one DeepSeek-V4-Flash tag. The same report lines the traces up, and each trace names the next one-field run. The batch follow-up is the next two doublings, global batch 16, then 32.
 category: Software tools & optimizations
 language: English
 myst:
   html_meta:
     "author": "Stephen Shao"
-    "description lang=en": "Collect one DeepSeek-V4-Flash trace type per madengine run on 8x MI350X, compare them with TraceLens, and turn the gaps into the next optimization runs."
+    "description lang=en": "Collect one DeepSeek-V4-Flash trace type per madengine run on 8x MI350X, compare them with TraceLens, and turn the gaps into the next optimization runs. The batch follow-up measured here is the next two doublings, global batch 16 and 32."
     "keywords": "madengine, Primus, DeepSeek-V4-Flash, TraceLens, rocprofv3, rocm-trace-lite, MI350X, MegaMoE"
     "property=og:locale": "en_US"
     "amd_category": "Developer Resources"
@@ -308,7 +308,7 @@ The window holds 6,380 kernels, about 3,190 in each profiled step. Inside the 52
 Two gaps fall out of this file.
 
 * The Adam block is about 22 ms at the end of each profiled step, and exposed NCCL is 11.1 ms per step. Figure 11 is the check: global batch 16, then 32. The token rate is the comparison.
-* The blue slices still need a parent before they need a flag. `ops_summary.csv` names `aten::add_`, `aten::copy_`, and `aten::linalg_vector_norm`. The follow-up is in the close. `PRIMUS_INDEXER_TRITON_FULL` is not that flag.
+* The blue slices need a parent before they need a flag. `ops_summary.csv` names `aten::add_`, `aten::copy_`, and `aten::linalg_vector_norm`. Table 5a reads the parents of the first two from this same trace. `PRIMUS_INDEXER_TRITON_FULL` is not that flag.
 
 ## Read the kernel mix
 
@@ -348,6 +348,36 @@ The leaf ops behind the named slices, from `ops_summary.csv`:
 
 Table 5. Largest named leaf operations in the same window. The four MegaMoE stage ops are 96.3 ms together. `aten::copy_`, `aten::add_`, and `aten::linalg_vector_norm` are elementwise leaves still present after the fusion set. `FusedRMSNormFnBackward` is the fused norm's own backward, 10.0 ms, not an unfused RMSNorm chain. rocm-trace-lite lists `rmsnorm_bwd_kernel_grid_stride` at 5.9% of its whole-process kernel time. That is the kernel name to look for under the fused norm, once the parent link is checked. The `hipLaunchKernel` slice in Table 4 is the Trace2Tree pattern: casts and leftover elementwise whose nearest CPU node is the launch, rather than a Python op with a stable name.
 
+`ops_summary.csv` names the leaf, not the caller. The rank-0 trace already holds the caller. This run kept `--torch_profiler_with_stack False`, so there are no Python frames, but TraceLens's Trace2Tree still nests every CPU op under the op that enclosed it on the same thread. Walking up from each `aten::add_` and `aten::copy_` launcher to the first ancestor that is not another `aten::` op names the parent. This step reads the trace from the framework run. It does not need another `madengine run`.
+
+```python
+from TraceLens import TreePerfAnalyzer
+
+a = TreePerfAnalyzer.from_file("traces/v4-r7-pytorch/.../rank[0]....pt.trace.json.gz")
+for ev in a.get_kernel_launchers():
+    if ev["name"] in ("aten::add_", "aten::copy_"):
+        p = a.tree.get_parent_event(ev)
+        while p is not None and p["name"].startswith("aten::"):
+            p = a.tree.get_parent_event(p)
+        print(ev["name"], ev["args"]["Input Dims"][0], p and p["name"], ev["total_direct_kernel_time"])
+```
+
+| Leaf | Nearest named parent | Leading shape | Calls | Kernel time |
+| --- | --- | --- | ---: | ---: |
+| `aten::add_` | `AccumulateGrad`, expert weights | `(32, 4096, 4096)`, `(32, 4096, 2048)` BF16 | 32 | 12.98 ms |
+| `aten::add_` | `AccumulateGrad`, every other parameter | | 248 | 2.60 ms |
+| `aten::add_` | `ViewBackward0` | `(1, 4096, 4, 4096)` | 50 | 2.52 ms |
+| `aten::copy_` | `ViewBackward0`, via `clone` under `reshape` | `(1, 4096, 8, 4096)`, `(8, 1024, 4096)` | 32 | 6.52 ms |
+| `aten::copy_` | `RoPEFromPositionsFnBackward`, via `contiguous` | `(1, 4096, 64, 512)` | 16 | 4.07 ms |
+| `aten::copy_` | `_V4SparseMLAAttnFn` and `_V4SparseMLACSAFn`, forward and backward | `(1, 4096, 64, 512)` | 152 | 6.62 ms |
+| `aten::copy_` | Forward casts, no named parent | small | 244 | 3.31 ms |
+
+Table 5a. Parents of the two elementwise leaves in the same rank-0 window, two steps. `aten::add_` totals 18.4 ms and `aten::copy_` totals 24.0 ms, as in Table 5. Rows under 0.9 ms are left out.
+
+The largest single answer is the expert gradient. 71% of `aten::add_` is autograd's `AccumulateGrad` on the two grouped expert weights, the leading 32 being the local experts per rank at expert parallel 8. There are 16 calls of each shape, one per layer per profiled step. MegaMoE's backward returns the expert weight gradient as a new tensor, and `AccumulateGrad` then adds it into the BF16 gradient that already exists. The dense linears do not pay this, because `--gradient_accumulation_fusion True` writes their weight gradient in place. That is the 15.8 ms `LinearWithGradAccumulationAndAsyncCommunicationBackward` from Table 8. Each expert add reads two tensors and writes one. That is about 3.2 GB in 0.55 ms for the `(32, 4096, 4096)` call and 1.6 GB in 0.26 ms for the `(32, 4096, 2048)` call, or about 6 TB/s. A faster add kernel is not the fix. The kernels are already near memory speed. The fix is to skip that pass by having the MegaMoE weight-gradient GEMM write into the gradient buffer the way the dense path does.
+
+`aten::copy_` has no single parent. Its time splits across three places that each make a tensor contiguous: a `reshape` in a view's backward (6.5 ms), the RoPE backward (4.1 ms), and the V4 attention functions, forward and backward (6.6 ms). Each one needs its own change to the layout, and none of them is the MegaMoE path.
+
 The three collectors can be compared because each was a `madengine run` of the same tag. They do not share a clock. Figure 8 is each lens's own kernel time.
 
 ![Horizontal grouped bars for eight kernel names. rocprofv3 is the long bar on dispatch_grouped_gemm and grouped_gemm_combine. The PyTorch window is the long bar on Cijk GEMM and Adam. rocm-trace-lite is the long bar on dispatch_prologue.](images/v4-kernel-compare.png)
@@ -371,13 +401,16 @@ That comparison is the reason to keep the collectors in separate runs. Stacked i
 | `aten::mm` | 4096 | 8192 | 4096 | 1638 | 1256 | 16 |
 | `aten::mm` | 4096 | 4096 | 8192 | 1638 | 1411 | 16 |
 | `aten::mm` | 4096 | 1024 | 32768 | 799 | 1119 | 16 |
+| `aten::mm` | 4096 | 16384 | 24 | 11.9 | 39.7 | 32 |
+| `aten::mm` | 24 | 16384 | 4096 | 11.9 | 42.5 | 32 |
+| `aten::mm` | 4096 | 24 | 16384 | 11.9 | 42.7 | 32 |
 | `aten::mm` | 4096 | 16384 | 4 | 2.0 | 4.7 | 2 |
 | `aten::mm` | 4 | 16384 | 4096 | 2.0 | 5.1 | 2 |
 | `aten::mm` | 4096 | 4 | 16384 | 2.0 | 9.3 | 2 |
 
-Table 6. Kernel rates in the rank-0 window, from operator arguments and kernel duration. The log's 1117 TFLOP/s/GPU is a different quantity: model FLOPs over the whole unprofiled step. A large tile at 1378 TFLOP/s can sit next to a step rate of 1117 without either number being wrong. The last three rows are the other cluster: a dimension of 4, 2 FLOP/byte, 4.7–9.3 TFLOP/s. MegaMoE's grouped GEMMs are the stage ops in Table 5. This report has no `GroupedGEMM_fwd.csv` for them, so their rate is not in this table.
+Table 6. Kernel rates in the rank-0 window, from operator arguments and kernel duration. The log's 1117 TFLOP/s/GPU is a different quantity: model FLOPs over the whole unprofiled step. A large tile at 1378 TFLOP/s can sit next to a step rate of 1117 without either number being wrong. The first five rows are BF16. The last six are the other cluster, and all six are FP32. The rows with a dimension of 24 are 7.6 ms of kernel time at about 40 TFLOP/s, 32 calls each. The rows with a dimension of 4 are 0.58 ms together, two calls each. Three more FP32 shapes with a dimension of 256 add 4.3 ms at 92–103 TFLOP/s. The FP32 small-dimension GEMMs are about 12.4 ms of the 60.2 ms GEMM total. The rates are means over calls. MegaMoE's grouped GEMMs are the stage ops in Table 5. This report has no `GroupedGEMM_fwd.csv` for them, so their rate is not in this table.
 
-The two clusters suggest different follow-ups. The large tiles and the MegaMoE stages are the BF16 denominator for an FP8 MegaMoE run, which is the published next kernel step. The dimension-4 tiles are a shape problem: Event Replay can cut one of them out of the trace into a standalone reproducer. Sequence length is a separate measurement, taken up in the close. The 128.1 GB peak does not answer it.
+The two clusters suggest different follow-ups. The large tiles and the MegaMoE stages are the BF16 denominator for an FP8 MegaMoE run, which is the published next kernel step. The FP32 tiles with a dimension of 24 or 4 are a shape problem, and the dimension-24 rows hold most of that time. Event Replay can cut one of them out of the trace into a standalone reproducer. Sequence length is a separate measurement, taken up in the close. The 128.1 GB peak does not answer it.
 
 ## Read the collectives
 
@@ -424,7 +457,9 @@ The small aten ops shrink, and the fused ops that were absent on rung 0 show up 
 
 ## Close the loop
 
-The profilers are finished when they name the next `madengine run`. Figure 11 is the global-batch check. Figure 12 is the before-column from the batch-8 window: milliseconds in one profiled step. Those bars overlap, so they are not slices of the 239.8 ms training step. Global batch 16 and global batch 32 were run. The elementwise fusion, FP8 MegaMoE, and sequence 8192 were not.
+The profilers are finished when they name the next `madengine run`. Figure 11 is the global-batch check. Figure 12 is the before-column from the batch-8 window: milliseconds in one profiled step. Those bars overlap, so they are not slices of the 239.8 ms training step. Global batch 16 and global batch 32 were run. The parent lookup in Table 5a reads the existing trace. The elementwise fix, FP8 MegaMoE, and sequence 8192 were not run.
+
+The rank-0 window is one microbatch. Each profiled step ends in an Adam block of about 22 ms, and exposed NCCL is about 11 ms of that step. More microbatches spread that tail over more tokens. They do not remove it. With micro-batch 1 on 8 GPUs, every multiple of 8 is a legal global batch. This post runs the next two doublings, 16 and 32. Figure 11 is the check. Per step the tail stays about 22 ms of Adam and 11 ms of exposed NCCL. Across the two captured steps those totals stay near 46 ms and 22 ms, while tokens/s/GPU goes from 17079 to 20204 to 22122. The gain from 16 to 32 is smaller than the gain from 8 to 16, so global batch 64 is not the next run.
 
 ![Three panels. The left panel shows tokens per second rising from 17079 to 20204 to 22122 as the global batch goes from 8 to 16 to 32. The middle panel shows window compute rising from 424 ms to 743 ms to 1380 ms. The right panel shows the Adam kernel near 46 ms and exposed NCCL near 22 ms at every batch.](images/v4-batch.png)
 
@@ -442,7 +477,7 @@ At batch 32, iterations 4–10 average **740.6 ms** and **22122 tokens/s/GPU**. 
 
 Against the batch-8 window, the Adam kernel stays near 46 ms and exposed communication stays near 22 ms, while compute grows from 424.1 ms to 742.6 ms to 1379.9 ms. The extra microbatches amortize that tail over more tokens. They do not remove it.
 
-2. **The elementwise leaves Figure 10 did not remove.** On rung 7, Table 5 still has `aten::add_` at 18.4 ms, `aten::copy_` at 24.0 ms, `aten::linalg_vector_norm` at 9.9 ms, and `FusedRMSNormFnBackward` at 10.0 ms, over two steps. The fusion set is already on, which is why RMSNorm shows up as that fused backward. The next step is a parent op, then the unique shape, then a fusion aimed at that leftover chain, then the same `ops_summary.csv` as a diff. `PRIMUS_INDEXER_TRITON_FULL` is an A/B of the indexer, not a fix for `aten::add_`.
+2. **The elementwise leaves Figure 10 did not remove.** On rung 7, Table 5 still has `aten::add_` at 18.4 ms, `aten::copy_` at 24.0 ms, `aten::linalg_vector_norm` at 9.9 ms, and `FusedRMSNormFnBackward` at 10.0 ms, over two steps. The fusion set is already on, which is why RMSNorm shows up as that fused backward. The parent step is done: Table 5a names it from this trace. 13.0 ms of `aten::add_` is `AccumulateGrad` adding MegaMoE's expert weight gradient into an existing BF16 gradient, already near memory speed. The run to try next writes that gradient in place, as `--gradient_accumulation_fusion` already does for the dense linears. Then compare the same `ops_summary.csv`, with Table 1's 239.8 ms and 17079 tok/s/GPU as the denominator. `aten::copy_` is three smaller layout fixes: a view backward, the RoPE backward, and the V4 attention functions. `PRIMUS_INDEXER_TRITON_FULL` is an A/B of the indexer, not a fix for `aten::add_`.
 
 3. **FP8 MegaMoE, against this BF16 rung.** Table 5's four stage ops are 96.3 ms of the window. Figure 9's large tiles run at 1100–1411 TFLOP/s inside that window. The published post names FP8 as the nearest follow-up, with the BF16 config as the reference. The denominator here is Table 1's 239.8 ms and 17079 tok/s/GPU. After the run, the same `madengine report tracelens` command writes the same `GEMM.csv` and `ops_summary.csv`.
 
@@ -456,7 +491,7 @@ Each follow-up that is still open is Figure 2 again. One tag, one field, copy `r
 
 **The training step is the unprofiled rung.** Eight `madengine run`s of one tag put MegaMoE with recompute off at 239.8 ms and 17079 tokens/s/GPU. Fusions were the large unprofiled gain. DeepEP alone was not.
 
-**The rank-0 window is close enough to read.** It is 1.09× that step. Compute is 81.3% of the window, exposed communication is 4.3%, and each step ends in an Adam block of about 22 ms. MegaMoE stages are 22.6% of direct kernel time. Elementwise is 16.7%. The large GEMMs run at 1100–1378 TFLOP/s. Tiles with a dimension of 4 run at about 5 TFLOP/s.
+**The rank-0 window is close enough to read.** It is 1.09× that step. Compute is 81.3% of the window, exposed communication is 4.3%, and each step ends in an Adam block of about 22 ms. MegaMoE stages are 22.6% of direct kernel time. Elementwise is 16.7%. The large GEMMs run at 1100–1378 TFLOP/s. The FP32 tiles with a dimension of 24 run at about 40 TFLOP/s for 7.6 ms. The tiles with a dimension of 4 run at about 5 TFLOP/s for 0.6 ms. 71% of the leftover `aten::add_` is `AccumulateGrad` on the MegaMoE expert weights.
 
 **The other lenses name the same kernels on a different clock.** rocm-trace-lite moved the step by 1.44× and rocprofv3 by 5.06×. Both include compile, which is why `dispatch_prologue` is 12.6% of the rocm-trace-lite kernel time and 0.3% of the window's kernel time. Held as separate runs, they confirm names. The window picks the next rung.
 
@@ -464,9 +499,19 @@ Each follow-up that is still open is Figure 2 again. One tag, one field, copy `r
 
 **The fusion set has a leaf diff.** Figure 10 and Table 8 compare rung 0 with rung 1 under the same rank-0 window. Elementwise launches fall from 22,014 to 4,396. `aten::div`, `aten::mul`, and `aten::add_` shrink, and the CSA attention backward drops from 177.7 ms to 32.6 ms with the same six calls. The 215.5 ms remains the unprofiled step, because the rung-0 window is 1.27× that step and the rung-1 window is 1.08×.
 
-**A larger global batch raises the token rate, and the tail stays put.** Figure 11 is the picture. Batch 16 is 405.5 ms and 20204 tokens/s/GPU, +18.3% over 17079. Batch 32 is 740.6 ms and 22122 tokens/s/GPU, +29.5% over 17079 and +9.5% over batch 16. Both keep the 128.1 GB peak. Across the rank-0 windows the Adam kernel stays 45.9 ms, 46.1 ms, and 46.4 ms, and exposed communication stays 22.3 ms, 21.1 ms, and 22.4 ms. Compute in those windows grows from 424.1 ms to 742.6 ms to 1379.9 ms.
+**A larger global batch raises the token rate, and the tail stays put.** Figure 11 is the picture. Batch 16 is 405.5 ms and 20204 tokens/s/GPU, +18.3% over 17079. Batch 32 is 740.6 ms and 22122 tokens/s/GPU, +29.5% over 17079 and +9.5% over batch 16. Both keep the 128.1 GB peak. Across the rank-0 windows the Adam kernel stays 45.9 ms, 46.1 ms, and 46.4 ms, and exposed communication stays 22.3 ms, 21.1 ms, and 22.4 ms. Compute in those windows grows from 424.1 ms to 742.6 ms to 1379.9 ms. This post runs the next two doublings, 16 and 32.
 
-**The next runs are a fusion aimed at the leftover elementwise leaves, FP8 MegaMoE, and a measured sequence of 8192.** Each one changes one field and is read with the same CSVs.
+**The next runs are an in-place expert weight gradient for MegaMoE, FP8 MegaMoE, and a measured sequence of 8192.** Each one changes one field and is read with the same CSVs.
+
+## Continue this tag in Claude Code
+
+The measurements in this post are shell commands. In a checkout of this repository, Claude Code can take the same tag. `/mad-tune-search` is the workflow: a clean baseline, one profiler depth at a time, then a few one-field candidates measured on clean runs. Figure 13 is that session for `primus_train/megatron_MI355X_deepseek_v4_flash-BF16-pretrain`.
+
+![mad-tune-search session. The left column lists eight phases. Baseline, Operator, and Dispatch are each 1/1. Kernel and Expect have no agent count. Propose is 1/1. Evaluate is 8/8 and selected. Synthesize is 1/1. The right column is Evaluate: an eval and a verify for c1-mbs2, c2-recompute-off, c3-fp8-indexer, and c4-tunableop.](images/v4-tune-search.png)
+
+*Figure 13. One `/mad-tune-search` session on this tag. Thirteen agents finished in 1 min 57 s. Baseline, operator, and dispatch each used one agent. Kernel and Expect show no agent. Propose named four candidates, and Evaluate ran an eval and a verify on each: micro-batch 2, recompute off, an FP8 indexer, and TunableOp. Recompute off is already rung 7. The panel is the shape of the session. Table 1 stays the training step.*
+
+`/mad-profile` runs a single depth: operator, dispatch, or kernel. `/mad-report` reads one finished result file. Leave `--expect` off for this tag. This post measures an 8-layer proxy, and projection scores the config that proxy overrides. The operator depth in the workflow collects with dynolog. The operator sections above collect with the Primus profiler flags.
 
 ## Additional resources
 

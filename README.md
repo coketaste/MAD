@@ -168,7 +168,7 @@ Skills, agents, and workflows under `.claude/` drive madengine for training and 
 | `/mad-tune-search` | Workflow | Operator, then dispatch, then kernel, then clean measurements |
 | `/primus-projection <primus-training-tag>` | Manual | Expected tokens/s and memory fit for a Primus training config only |
 
-`/primus-projection` and `mad-tune-search --expect` apply to Primus training tags such as `primus_train/megatron_MI355X_deepseek_v4_flash-BF16-pretrain`. They do not apply to vLLM or other inference tags.
+`/primus-projection` and `mad-tune-search --expect` apply to a Primus training tag whose YAML is the shape you will measure, such as `primus_train/megatron_MI355X_llama3.1_8B-BF16-pretrain`. They do not apply to vLLM or other inference tags. The DeepSeek-V4-Flash post overrides its YAML with an 8-layer proxy, so leave `--expect` off for that tag.
 
 ## Contributing
 
