@@ -2,8 +2,8 @@ export const meta = {
   name: 'mad-benchmark-sweep',
   description: 'Fan out a benchmark matrix across MAD models/tags, run (or plan) each with madengine, parse results, and synthesize a comparison table',
   phases: [
-    { title: 'Resolve', detail: 'expand tags into concrete models via madengine discover' },
-    { title: 'Run', detail: 'execute each benchmark one at a time (or plan without agents)' },
+    { title: 'Resolve', detail: 'pre-flight once and resolve every tag with madengine discover' },
+    { title: 'Run', detail: 'plan cells in parallel, or execute them one at a time' },
     { title: 'Synthesize', detail: 'parse results into a comparison table' },
   ],
 }
@@ -12,26 +12,32 @@ export const meta = {
 //   (a) a structured object: { tags: string[], nGpus?: string[], execute?: boolean,
 //       additionalContext?: string, timeout?: number }
 //   (b) a CLI-style string mirroring `/mad-benchmark`, e.g.
-//       --tags pyt_vllm_qwen3-8b,bert --additional-context '{"gpu_vendor":"AMD",...}' --live-output
+//       --tags pyt_vllm_qwen3-8b,dummy_multi --additional-context '{"gpu_vendor":"AMD",...}' --execute
 //
-// Multiple tags: pass several after --tags and/or comma-separate them. The Resolve
-// phase expands each tag via `madengine discover`, so a group tag fans out into one
-// sweep cell PER MODEL, models matched by several tags run once, and tags matching
-// nothing are reported before any Docker build. --additional-context is threaded
-// verbatim into EVERY cell command (so HF tokens / docker_env_vars reach each run).
+// At least one tag is required. Pass several after --tags and/or comma-separate
+// them. Resolve expands each tag via `madengine discover`; every resolved model
+// becomes its own sweep cell (a model matched by several tags runs once), and a
+// tag matching nothing becomes an error cell. --additional-context (JSON or a Python
+// dict literal) is normalized to JSON and threaded into EVERY cell command, so
+// HF tokens / docker_env_vars reach each run.
 //
-// EXECUTE semantics: runs for real by default. Pass --no-execute (or --plan, or
-// execute:false) to only validate commands + resolve tags without touching GPUs.
-// Even when executing, each cell first checks for AMD GPUs and self-skips if none.
+// EXECUTE semantics: plans by default — resolves tags and prints each cell's
+// command without touching GPUs. Pass --execute (or execute:true) to run them.
+// --plan / --no-execute / --dry-run force plan mode. Even when executing, each
+// cell first checks for AMD GPUs and self-skips if none.
+// Executed cells run ONE AT A TIME: madengine gives every run the GPUs from
+// index 0 up and shares working files (perf_entry*, build_manifest.json), so
+// parallel runs on one host would collide. Each run also goes through
+// .claude/skills/mad-common/mad-run.sh, which detaches it (a tool call ends after
+// 10 minutes) and holds a host-wide GPU lock. Planned cells run in parallel.
 //
 // NOTE: there is intentionally no precision axis. In MAD, precision is NOT a
 // runtime `madengine run` flag: for training it is fixed per-model via
-// `training_precision` in models.json, and for inference it is baked into the
-// pre-trained model/image. To compare precisions, list the distinct model tags.
+// `training_precision` in the model's registry entry (scripts/<dir>/models.json),
+// and for inference it is baked into the pre-trained model/image. To compare
+// precisions, list the distinct model tags.
 
 // Bash-single-quote an arbitrary string so it survives embedding in a shell command.
-// MAD allows Python-dict --additional-context (single quotes); a raw '${ctx}' wrap
-// breaks on those quotes and can inject shell metacharacters.
 function shellQuote(s) {
   return "'" + String(s).replace(/'/g, "'\\''") + "'"
 }
@@ -57,10 +63,60 @@ function tokenize(s) {
   return out
 }
 
+// Rewrite a Python dict literal (single quotes, True/False/None, trailing
+// commas) as JSON. madengine accepts both forms; the workflow needs JSON so it
+// can merge keys into the context.
+function pyLiteralToJson(s) {
+  let out = '', i = 0
+  while (i < s.length) {
+    const c = s[i]
+    if (c === "'" || c === '"') {
+      let str = ''
+      i++
+      while (i < s.length && s[i] !== c) {
+        if (s[i] === '\\' && i + 1 < s.length) {
+          const n = s[i + 1]
+          str += (n === "'" ? "'" : n === '"' ? '"' : '\\' + n)
+          i += 2
+        } else {
+          str += s[i++]
+        }
+      }
+      if (i >= s.length) throw new Error('unterminated string')
+      i++
+      out += JSON.stringify(str.replace(/\\(.)/g, (m, n) => JSON.parse('"\\' + n + '"')))
+    } else if (/[A-Za-z_]/.test(c)) {
+      let w = ''
+      while (i < s.length && /[A-Za-z0-9_]/.test(s[i])) w += s[i++]
+      out += ({ True: 'true', False: 'false', None: 'null' })[w] || w
+    } else {
+      out += c
+      i++
+    }
+  }
+  return out.replace(/,(\s*[}\]])/g, '$1')
+}
+
+// Parse --additional-context into a plain object, or throw. Never silently drop
+// it: it carries docker_env_vars such as the HF token.
+function normalizeContext(raw) {
+  if (raw == null || raw === '') return null
+  if (typeof raw === 'object' && !Array.isArray(raw)) return raw
+  let obj
+  try { obj = JSON.parse(raw) } catch (e) {
+    try { obj = JSON.parse(pyLiteralToJson(String(raw))) } catch (e2) {
+      throw new Error(`--additional-context must be a JSON object or a Python dict literal (${e2.message}): ${raw}`)
+    }
+  }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj))
+    throw new Error(`--additional-context must be an object, got: ${raw}`)
+  return obj
+}
+
 // --- parse a CLI string into the structured cfg the sweep uses ---
 function parseCli(s) {
   const toks = tokenize(s)
-  const cfg = { tags: [], nGpus: [], execute: true }
+  const cfg = { tags: [], nGpus: [], execute: false }
   for (let i = 0; i < toks.length; i++) {
     const t = toks[i]
     const next = () => toks[++i]
@@ -92,93 +148,78 @@ let cfg
 if (typeof args === 'string') {
   cfg = parseCli(args)
 } else if (args && typeof args === 'object') {
-  cfg = { execute: true, ...args }
-  if (typeof cfg.tags === 'string') cfg.tags = [cfg.tags]
+  cfg = { execute: false, ...args }
+  if (typeof cfg.tags === 'string') cfg.tags = cfg.tags.split(',').filter(Boolean)
 } else {
-  cfg = { tags: [], nGpus: [], execute: true }
+  cfg = { tags: [], nGpus: [], execute: false }
 }
 
-const tags = (cfg.tags && cfg.tags.length) ? cfg.tags : ['bert']
+if (!cfg.tags || !cfg.tags.length)
+  throw new Error('mad-benchmark-sweep needs at least one tag, e.g. --tags pyt_vllm_qwen3-8b,dummy_multi [--execute]')
+const tags = cfg.tags
 const nGpus = (cfg.nGpus && cfg.nGpus.length) ? cfg.nGpus : [null]
-const execute = cfg.execute !== false
-const addlCtx = cfg.additionalContext || null
+const execute = cfg.execute === true
+const ctxObj = normalizeContext(cfg.additionalContext)
 const timeout = cfg.timeout || null
+const PREFLIGHT = 'bash .claude/skills/mad-common/preflight.sh'
+const MAD_RUN = 'bash .claude/skills/mad-common/mad-run.sh'
 
-// --- Resolve: expand each tag into the concrete models it selects ---
+if (!execute) log('Plan mode: commands are resolved and printed, nothing runs. Pass --execute to run them on this host.')
+
+// ── Resolve: one pre-flight, then madengine discover per tag ───────────────
 phase('Resolve')
 const RESOLVE_SCHEMA = {
   type: 'object',
-  required: ['resolved', 'unresolved'],
+  required: ['preflightOk', 'tags'],
   properties: {
-    resolved: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['tag', 'models'],
-        properties: {
-          tag: { type: 'string' },
-          models: {
-            type: 'array',
-            items: {
-              type: 'object',
-              required: ['name'],
-              properties: { name: { type: 'string' }, n_gpus: { type: 'string' } },
-            },
-          },
-        },
+    preflightOk: { type: 'boolean' },
+    preflightOutput: { type: 'string' },
+    tags: { type: 'array', items: {
+      type: 'object',
+      required: ['tag', 'models'],
+      properties: {
+        tag: { type: 'string' },
+        models: { type: 'array', items: { type: 'string' } },
+        error: { type: ['string', 'null'] },
       },
-    },
-    unresolved: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['tag', 'error'],
-        properties: { tag: { type: 'string' }, error: { type: 'string' } },
-      },
-    },
+    } },
   },
 }
-
-const resolution = await agent(
-  `Resolve MAD benchmark tags into concrete models. Do NOT build or run anything.
-Pre-flight: run \`bash .claude/skills/mad-common/preflight.sh\` and stop if it exits non-zero.
-For EACH tag below, run it on its own (so one bad tag cannot fail the others), from the MAD repo root:
-  madengine discover --json --tags <tag> 2>/dev/null
-stdout is a JSON array of model cards; exit code 1 means no model matched.
-Tags: ${JSON.stringify(tags)}
-For each tag that matched, report every model's exact "name" (keep any scope prefix such as "dummy/dummy_multi") and its "n_gpus".
-For each tag that failed, put it in unresolved with the error message. Copy names verbatim — do not guess or invent models.`,
-  { label: 'resolve:discover', phase: 'Resolve', schema: RESOLVE_SCHEMA, effort: 'low' }
+const resolved = await agent(
+  `Resolve MAD tags for a benchmark sweep. Run from the MAD repo root.
+1. Run \`${PREFLIGHT}\`. If it exits non-zero, return preflightOk false with its output and stop.
+2. For each tag below, run \`madengine discover --tags <tag> --json\` (read-only, no GPU) and return the "name" of every model it lists. A tag that matches nothing gets an empty list and the error text.
+Tags: ${JSON.stringify(tags)}`,
+  { label: 'resolve', phase: 'Resolve', schema: RESOLVE_SCHEMA, agentType: 'mad-benchmark-runner' }
 )
-
-// Dedup models across tags; remember which tag(s) selected each one.
-let models = []
-let unresolved = []
-if (resolution) {
-  const byName = new Map()
-  for (const r of resolution.resolved || []) {
-    for (const m of r.models || []) {
-      if (!byName.has(m.name)) byName.set(m.name, { name: m.name, modelNGpus: m.n_gpus || null, viaTags: [] })
-      byName.get(m.name).viaTags.push(r.tag)
-    }
-  }
-  models = [...byName.values()]
-  unresolved = resolution.unresolved || []
-} else {
-  // Resolve agent died — fall back to treating each raw tag as one cell.
-  log('Resolve agent returned nothing; falling back to one cell per raw tag (no dedup or validation).')
-  models = tags.map(t => ({ name: t, modelNGpus: null, viaTags: [t] }))
+if (!resolved) throw new Error('Resolve step returned no result; nothing was run.')
+if (!resolved.preflightOk) throw new Error(`Pre-flight failed; nothing was run.\n${resolved.preflightOutput || ''}`)
+const modelsByTag = {}
+for (const t of resolved.tags || []) modelsByTag[t.tag] = t
+for (const tag of tags) {
+  const r = modelsByTag[tag]
+  log(`Tag "${tag}": ${r && r.models.length ? `${r.models.length} model(s) [${r.models.slice(0, 5).join(', ')}${r.models.length > 5 ? ', …' : ''}]` : 'did not resolve'}`)
 }
-if (unresolved.length)
-  log(`Unresolved tag(s), will be reported as errors and NOT run: ${unresolved.map(u => u.tag).join(', ')}`)
 
-// Build the matrix of {model, nGpus} cells. A full model name is a valid --tags value.
+// Build the matrix: one cell per resolved MODEL (not per tag) × n_gpus, so a
+// group tag fans out and each model gets its own result. A model matched by
+// several tags runs once. A full model name is a valid --tags value.
+const viaTags = new Map()
+for (const tag of tags)
+  for (const name of (modelsByTag[tag] && modelsByTag[tag].models) || []) {
+    if (!viaTags.has(name)) viaTags.set(name, [])
+    viaTags.get(name).push(tag)
+  }
 const matrix = []
-for (const m of models)
+for (const [name, via] of viaTags)
   for (const g of nGpus)
-    matrix.push({ tag: m.name, nGpus: g, viaTags: m.viaTags, modelNGpus: m.modelNGpus })
+    matrix.push({ tag: name, viaTags: via, nGpus: g })
+// Tags that resolved to nothing become one error cell each and never run.
+for (const tag of tags)
+  if (!(modelsByTag[tag] && modelsByTag[tag].models.length))
+    matrix.push({ tag, unresolved: true, error: modelsByTag[tag] && modelsByTag[tag].error })
 
-log(`Sweep matrix: ${matrix.length} cell(s) from ${models.length} model(s) resolved from ${tags.length} tag(s) [${tags.join(', ')}]. execute=${execute}${addlCtx ? ', additional-context threaded' : ''}`)
+log(`Sweep matrix: ${matrix.length} cell(s) from ${viaTags.size} model(s) across ${tags.length} tag(s) [${tags.join(', ')}]. execute=${execute}${ctxObj ? ', additional-context threaded' : ''}`)
 
 const CELL_SCHEMA = {
   type: 'object',
@@ -193,71 +234,65 @@ const CELL_SCHEMA = {
   },
 }
 
-function buildCell(cell) {
+function runCell(cell, i) {
   const label = `${cell.tag}${cell.nGpus ? '/' + cell.nGpus + 'gpu' : ''}`
-  // Each cell writes its OWN perf file so parallel runs never clobber a shared
+  // Each cell writes its OWN perf file so results never mix in a shared
   // perf.csv. A safe filename is derived from the label.
   const safe = label.replace(/[^A-Za-z0-9._-]/g, '_')
   const outFile = `perf_${safe}.csv`
+  if (cell.unresolved) {
+    return Promise.resolve({
+      cell: label, command: '', status: 'error', performance: null, metric: null,
+      notes: `tag did not resolve via madengine discover${cell.error ? ': ' + cell.error : ''}`,
+      _label: label, _output: outFile,
+    })
+  }
   const flags = [
-    '--tags ' + cell.tag,
+    '--tags ' + shellQuote(cell.tag),
     '--live-output',
     '-o ' + outFile,
   ]
   if (timeout) flags.push('--timeout ' + timeout)
-  // Thread the user-supplied --additional-context verbatim into every cell. If a
-  // per-cell n_gpus axis is set, try to merge it into the JSON; fall back to the
-  // raw string + a separate context if merge isn't possible.
+  // Thread the user-supplied context into every cell, plus the per-cell
+  // n_gpus axis when one is set.
   let ctx = ''
-  if (addlCtx) {
-    let merged = addlCtx
-    if (cell.nGpus) {
-      try {
-        const obj = JSON.parse(addlCtx)
-        obj.n_gpus = cell.nGpus
-        merged = JSON.stringify(obj)
-      } catch (e) { /* leave raw; n_gpus axis ignored for this cell */ }
-    }
-    ctx = ` --additional-context ${shellQuote(merged)}`
-  } else if (cell.nGpus) {
-    ctx = ` --additional-context ${shellQuote(JSON.stringify({ n_gpus: String(cell.nGpus) }))}`
+  if (ctxObj || cell.nGpus) {
+    const merged = { ...(ctxObj || {}) }
+    if (cell.nGpus) merged.n_gpus = String(cell.nGpus)
+    ctx = ` --additional-context ${shellQuote(JSON.stringify(merged))}`
   }
   const cmd = `madengine run ${flags.join(' ')}${ctx}`
-  return { label, outFile, cmd }
-}
+  const runId = `sweep_${safe}_${i}`
 
-const cellMeta = c => ({ _label: c.label, _output: c.outFile, _viaTags: c.viaTags, _modelNGpus: c.modelNGpus })
-const cells = matrix.map(cell => ({ ...cell, ...buildCell(cell) }))
+  const action = execute
+    ? `If AMD GPUs are present (check rocm-smi/amd-smi), run this command from the MAD repo root through the run helper — never in the foreground, a tool call ends after 10 minutes:
+  ${MAD_RUN} start ${runId} -- ${cmd}
+(if that run-id already exists, append -2, -3, ... to it), then repeat \`${MAD_RUN} wait <run-id>\` until its first line says MAD_RUN_STATUS=succeeded or failed. The model may emit a "performance: <value> <unit>" stdout line OR (if it is a multiple_results model) write per-metric rows to its own CSV — in that case report the primary throughput metric. Results land in ${outFile}. If no GPUs, set status "skipped".`
+    : `Do NOT execute. Check the command is well-formed (the model already resolved via ${cell.viaTags.join(', ')}). Set status "planned".`
+
+  return agent(
+    `MAD benchmark sweep cell "${label}".
+Command: ${cmd}
+${action}
+Return the cell label, the exact command, status, and performance/metric if available.`,
+    { label: `bench:${label}`, phase: 'Run', schema: CELL_SCHEMA, agentType: 'mad-benchmark-runner' }
+  ).then(res => res
+    ? { ...res, _label: label, _output: outFile, _viaTags: cell.viaTags }
+    : { cell: label, command: cmd, status: 'error', performance: null, metric: null,
+        notes: 'cell agent returned no result', _label: label, _output: outFile, _viaTags: cell.viaTags })
+}
 
 phase('Run')
-const results = []
-if (!execute) {
-  // Resolve already validated every tag via discover — planning needs no agents.
-  for (const c of cells)
-    results.push({ cell: c.label, command: c.cmd, status: 'planned', ...cellMeta(c) })
+let results
+if (execute) {
+  results = []
+  for (let i = 0; i < matrix.length; i++) results.push(await runCell(matrix[i], i))
 } else {
-  // Run cells ONE AT A TIME: they share the same GPUs (and Docker daemon), so
-  // concurrent runs would contend and skew each other's numbers.
-  for (const c of cells) {
-    const r = await agent(
-      `MAD benchmark sweep cell "${c.label}".
-Pre-flight: run \`bash .claude/skills/mad-common/preflight.sh\` and stop if it exits non-zero.
-Command: ${c.cmd}
-If AMD GPUs are present (check rocm-smi/amd-smi), RUN this command from the MAD repo root and parse results. This model may emit a "performance: <value> <unit>" stdout line OR (if it is a multiple_results model) write per-metric rows to its own CSV — in that case report the primary throughput metric. Results land in ${c.outFile}. If no GPUs, set status "skipped".
-Return the cell label, the exact command, status, and performance/metric if available.`,
-      { label: `bench:${c.label}`, phase: 'Run', schema: CELL_SCHEMA }
-    )
-    results.push(r
-      ? { ...r, ...cellMeta(c) }
-      : { cell: c.label, command: c.cmd, status: 'error', notes: 'cell agent returned no result', ...cellMeta(c) })
-  }
+  results = await parallel(matrix.map((cell, i) => () => runCell(cell, i)))
 }
-// Unresolved tags never ran — surface them as error cells so they can't read as success.
-for (const u of unresolved)
-  results.push({ cell: u.tag, command: `madengine discover --tags ${u.tag}`, status: 'error', notes: `tag did not resolve: ${u.error}` })
 
 phase('Synthesize')
-const clean = results
+const clean = results.filter(Boolean)
 const summary = await agent(
   `Synthesize a MAD benchmark sweep into a markdown comparison table.
 Cells (JSON, each with its own _output perf file; _viaTags = the sweep tag(s) that selected the model): ${JSON.stringify(clean)}
@@ -266,10 +301,10 @@ Produce: (1) a table with columns Cell | Via tag(s) | Command | Status | Perform
 (3) explicitly flag any cell whose status is "error" or whose tag did not resolve —
 do not let a failed/unresolved cell read as success;
 (4) if any ran, the fastest and slowest cells (respecting that metric units differ);
-(5) note that each cell wrote a separate perf_<cell>.csv (to avoid clobbering) and
-that they can be concatenated for a combined report.
+(5) note that each cell wrote a separate perf_<cell>.csv and that they can be
+concatenated for a combined report.
 Do not invent numbers — only use provided data.`,
-  { phase: 'Synthesize' }
+  { phase: 'Synthesize', agentType: 'mad-perf-analyst' }
 )
 
 return { execute, cells: clean, report: summary }

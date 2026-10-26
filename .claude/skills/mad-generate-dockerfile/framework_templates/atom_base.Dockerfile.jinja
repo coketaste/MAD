@@ -3,7 +3,7 @@
 #
 # MIT License
 #
-# Copyright (c) Advanced Micro Devices, Inc.
+# Copyright (c) {{ year }} Advanced Micro Devices, Inc.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,13 +23,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 #
-#################################################################################
-# Kimi K3 requires vLLM >= 0.27.0, which is not in a tagged vllm-openai-rocm
-# release yet; the model-specific :kimi-k3 image is the only ROCm build with the
-# KDA / Gated MLA / Stable LatentMoE support the checkpoint needs. Kept separate
-# from docker/pyt_vllm so the ~35 other vLLM entries stay on the tagged release.
-# Fold this back into docker/pyt_vllm once K3 lands in a vX.Y.Z ROCm image.
-ARG BASE_DOCKER=vllm/vllm-openai-rocm:kimi-k3
+###############################################################################
+ARG BASE_DOCKER={{ base_image }}
 FROM $BASE_DOCKER
 
 USER root
@@ -37,8 +32,28 @@ ENV WORKSPACE_DIR=/workspace
 RUN mkdir -p $WORKSPACE_DIR
 WORKDIR $WORKSPACE_DIR
 
+{% if apt_packages %}
+RUN apt update && apt install -y {{ apt_packages | map('shquote') | join(' ') }} \
+    && rm -rf /var/lib/apt/lists/*
+{% endif %}
+
+{% if pip_packages %}
+RUN pip install --no-cache-dir {{ pip_packages | map('shquote') | join(' ') }}
+{% endif %}
+
+{% if git_repos %}
+{% for repo in git_repos %}
+RUN git clone {{ repo.url | shquote }} {{ repo.path | shquote }}
+{% if repo.checkout %}
+RUN cd {{ repo.path | shquote }} && git checkout {{ repo.checkout | shquote }}
+{% endif %}
+{% endfor %}
+{% endif %}
+
 # record configuration for posterity
 RUN pip3 list
 
+{% if custom_entrypoint %}
 # Specify entrypoint to override upstream
 ENTRYPOINT [""]
+{% endif %}

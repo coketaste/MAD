@@ -3,7 +3,7 @@
 #
 # MIT License
 #
-# Copyright (c) Advanced Micro Devices, Inc.
+# Copyright (c) {{ year }} Advanced Micro Devices, Inc.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,17 +23,21 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 #
-#################################################################################
-ARG BASE_DOCKER=rocm/pytorch:latest
+###############################################################################
+ARG BASE_DOCKER={{ base_image }}
 FROM $BASE_DOCKER
 
 USER root
-ENV APP_DIR=/app
-RUN mkdir -p $APP_DIR
-WORKDIR $APP_DIR
+ENV WORKSPACE_DIR=/workspace
+RUN mkdir -p $WORKSPACE_DIR
+WORKDIR $WORKSPACE_DIR
 
-# Environment variables
-ENV HIP_FORCE_DEV_KERNARG=1
+{% if apt_packages %}
+RUN apt update && apt install -y {{ apt_packages | map('shquote') | join(' ') }} \
+    && rm -rf /var/lib/apt/lists/*
+{% endif %}
+
+{% if build_flash_attention %}
 ARG MAX_JOBS_ARG=192
 ENV MAX_JOBS=${MAX_JOBS_ARG}
 
@@ -44,31 +48,39 @@ RUN echo HIP_ARCHITECTURES = ${HIP_ARCHITECTURES}
 
 # Install flash attention
 ARG BUILD_FA="1"
-ARG FA_BRANCH="v3.0.0.r1-cktile"
-ARG FA_REPO="https://github.com/ROCm/flash-attention.git"
+ARG FA_BRANCH="{{ fa_branch | default('v3.0.0.r1-cktile') }}"
+ARG FA_REPO="{{ fa_repo | default('https://github.com/ROCm/flash-attention.git') }}"
 RUN if [ "$BUILD_FA" = "1" ]; then \
-    cd ${APP_DIR} \
+    cd ${WORKSPACE_DIR} \
     && pip uninstall -y flash-attention \
     && rm -rf flash-attention \
-    && git clone ${FA_REPO} \
+    && git clone "${FA_REPO}" \
     && cd flash-attention \
-    && git checkout ${FA_BRANCH} \
+    && git checkout "${FA_BRANCH}" \
     && git submodule update --init \
     && GPU_ARCHS=${HIP_ARCHITECTURES} python3 setup.py bdist_wheel --dist-dir=dist \
     && pip install dist/*.whl \
     && python -c "import flash_attn; print(f'Flash Attention version == {flash_attn.__version__}')"; \
     fi
+{% endif %}
 
-# Install Janus-pro
-RUN cd ${APP_DIR} \
-  && git clone https://github.com/deepseek-ai/Janus.git \
-  && cd Janus \
-  && sed -i 's/^torch==/# torch==/' requirements.txt \
-  && pip install -e . \
-  && pip install datasets \
-  && cd ..
+{% if pip_packages %}
+RUN pip install --no-cache-dir {{ pip_packages | map('shquote') | join(' ') }}
+{% endif %}
 
-WORKDIR /myworkspace
+{% if git_repos %}
+{% for repo in git_repos %}
+RUN git clone {{ repo.url | shquote }} {{ repo.path | shquote }}
+{% if repo.checkout %}
+RUN cd {{ repo.path | shquote }} && git checkout {{ repo.checkout | shquote }}
+{% endif %}
+{% endfor %}
+{% endif %}
 
 # record configuration for posterity
 RUN pip3 list
+
+{% if custom_entrypoint %}
+# Specify entrypoint to override upstream
+ENTRYPOINT [""]
+{% endif %}
