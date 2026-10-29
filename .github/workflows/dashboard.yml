@@ -1,0 +1,73 @@
+name: Status dashboard
+
+# Builds the MAD status dashboard (tools/dashboard/build.py) on every PR that touches the
+# model registry, and publishes it to GitHub Pages from develop on ROCm/MAD.
+# Pages must be enabled once by a repo admin: Settings > Pages > Source: GitHub Actions.
+on:
+  pull_request:
+    paths:
+      - "models.json"
+      - "scripts/**"
+      - "docker/**"
+      - "dashboard/**"
+      - "tools/dashboard/**"
+      - "requirements.txt"
+      - ".github/workflows/dashboard.yml"
+  push:
+    branches: [develop]
+    paths:
+      - "models.json"
+      - "scripts/**"
+      - "docker/**"
+      - "dashboard/**"
+      - "tools/dashboard/**"
+      - "requirements.txt"
+      - ".github/workflows/dashboard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dashboard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # scripts/Primus feeds the Primus and JAX get_models_json.py registries.
+          submodules: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install madengine and dashboard dependencies
+        run: pip install -r requirements.txt pyyaml jinja2 pytest
+
+      - name: Unit tests
+        run: python3 -m pytest -q tools/dashboard
+
+      - name: Build site
+        run: python3 tools/dashboard/build.py --out _site
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    if: github.repository == 'ROCm/MAD' && github.ref == 'refs/heads/develop' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

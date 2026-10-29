@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}MAD status{% endblock %}</title>
+<style>
+  /* Tokens: dataviz reference palette (chrome, ink, status), light and dark selected separately. */
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --surface-2: #f0efec;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --ink-3: #898781;
+    --hairline: #e1e0d9;
+    --rule: #c3c2b7;
+    --ring: rgba(11, 11, 11, 0.10);
+    --accent: #2a78d6;
+    --brand: #ed1c24;
+    --good-ink: #006300;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --critical: #d03b3b;
+    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --surface-2: #383835;
+      --ink: #f0efec;
+      --ink-2: #c3c2b7;
+      --ink-3: #898781;
+      --hairline: #2c2c2a;
+      --rule: #383835;
+      --ring: rgba(255, 255, 255, 0.10);
+      --accent: #3987e5;
+      --good-ink: #0ca30c;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-2: #383835;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --ink-3: #898781;
+    --hairline: #2c2c2a;
+    --rule: #383835;
+    --ring: rgba(255, 255, 255, 0.10);
+    --accent: #3987e5;
+    --good-ink: #0ca30c;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.5 var(--sans); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font: 0.86em var(--mono); background: var(--surface-2); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+
+  .topbar { border-bottom: 1px solid var(--hairline); background: var(--surface); }
+  .topbar .wrap { display: flex; align-items: center; gap: 20px; height: 52px; }
+  .topbar .brand { font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 10px; }
+  .topbar .brand::before { content: ""; width: 4px; height: 20px; background: var(--brand); border-radius: 2px; }
+  .topbar nav { display: flex; gap: 16px; margin-left: auto; align-items: center; }
+  .topbar nav a { color: var(--ink-2); font-size: 14px; }
+  .topbar button { font: 13px var(--sans); color: var(--ink-2); background: none; border: 1px solid var(--hairline); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+
+  header.page { padding: 32px 0 8px; }
+  header.page h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.01em; }
+  header.page .meta { color: var(--ink-2); font-size: 14px; }
+  .banner { margin: 16px 0 0; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--critical); color: var(--ink); background: var(--surface); }
+  .banner strong { color: var(--critical); }
+
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 24px 0 8px; }
+  .kpi { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 14px 16px; }
+  .kpi .label { color: var(--ink-2); font-size: 13px; }
+  .kpi .value { font-size: 32px; font-weight: 650; line-height: 1.15; margin-top: 2px; }
+  .kpi .sub { color: var(--ink-3); font-size: 12.5px; margin-top: 2px; }
+
+  .toc { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 18px 0 0; padding: 0; list-style: none; font-size: 14px; }
+
+  section { margin: 40px 0; }
+  section > h2 { font-size: 21px; margin: 0 0 4px; }
+  section > .lede { color: var(--ink-2); margin: 0 0 16px; max-width: 860px; }
+
+  .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+  th { color: var(--ink-2); font-weight: 600; font-size: 12.5px; white-space: nowrap; background: var(--surface); }
+  tr:last-child td { border-bottom: 0; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.mark, th.mark { text-align: center; width: 76px; }
+  td.muted, .muted { color: var(--ink-3); }
+  .yes { color: var(--good-ink); font-weight: 700; }
+  .no { color: var(--ink-3); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  .chip { display: inline-block; font-size: 12px; line-height: 1.6; padding: 0 7px; margin: 1px 4px 1px 0; border-radius: 999px; border: 1px solid var(--hairline); color: var(--ink-2); white-space: nowrap; }
+
+  .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 20px 0 12px; }
+  .filters input, .filters select { font: 14px var(--sans); color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 10px; }
+  .filters input { min-width: 260px; }
+  .filters .count { color: var(--ink-3); font-size: 13px; }
+
+  details.fw { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; margin: 0 0 10px; }
+  details.fw > summary { cursor: pointer; padding: 11px 14px; font-weight: 600; display: flex; gap: 10px; align-items: baseline; list-style: none; }
+  details.fw > summary::-webkit-details-marker { display: none; }
+  details.fw > summary::before { content: "▸"; color: var(--ink-3); }
+  details.fw[open] > summary::before { content: "▾"; }
+  details.fw > summary .muted { font-weight: 400; font-size: 13px; }
+  details.fw .card { border: 0; border-top: 1px solid var(--hairline); border-radius: 0 0 10px 10px; }
+
+  .status { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; }
+  .status::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+  .status.good { color: var(--good-ink); }
+  .status.good::before { background: var(--good); }
+  .status.warning::before { background: var(--warning); }
+  .status.critical::before { background: var(--critical); }
+
+  .qa { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+  .qa h3 { font-size: 15px; margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--hairline); }
+  .qa ul { list-style: none; margin: 0; padding: 0; }
+  .qa li { padding: 10px 14px; border-bottom: 1px solid var(--hairline); }
+  .qa li:last-child { border-bottom: 0; }
+  .qa .area { font-weight: 600; }
+  .qa .scope { color: var(--ink-2); font-size: 13.5px; }
+  .qa .note { color: var(--ink-3); font-size: 13px; }
+
+  .skugrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 16px; }
+  .sku { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 12px 14px; }
+  .sku .name { font-weight: 650; font-size: 17px; }
+  .sku .isa { color: var(--ink-3); font-size: 12.5px; margin-bottom: 6px; }
+
+  .empty { padding: 18px 14px; color: var(--ink-2); }
+  .warnings { margin-top: 16px; font-size: 13.5px; color: var(--ink-2); }
+  .warnings summary { cursor: pointer; }
+  .warnings li { margin: 3px 0; }
+
+  footer { border-top: 1px solid var(--hairline); margin-top: 56px; padding: 20px 0 40px; color: var(--ink-3); font-size: 13px; }
+  @media print { .topbar nav, .filters { display: none; } details.fw { break-inside: avoid; } }
+</style>
+<script>
+  // Apply the saved theme before first paint.
+  (function () { var t = localStorage.getItem("mad-theme"); if (t) document.documentElement.dataset.theme = t; })();
+</script>
+</head>
+<body>
+<div class="topbar"><div class="wrap">
+  <a class="brand" href="{{ root }}/index.html">MAD status</a>
+  <nav>
+    <a href="{{ root }}/index.html">Latest</a>
+    <a href="{{ root }}/releases.html">Releases</a>
+    <a href="https://github.com/ROCm/MAD">GitHub</a>
+    <button type="button" id="theme" aria-label="Toggle light or dark theme">Theme</button>
+  </nav>
+</div></div>
+<main class="wrap">
+{% block content %}{% endblock %}
+</main>
+<footer><div class="wrap">
+  Generated by <code>tools/dashboard/build.py</code> from
+  {% if snap.commit %}<a href="https://github.com/ROCm/MAD/commit/{{ snap.commit }}"><code>{{ snap.commit[:10] }}</code></a>{% else %}a local tree{% endif %}
+  on {{ snap.date }}. Model data: <code>scripts/*/models.json</code>, <code>scripts/*/get_models_json.py</code>, <code>docker/</code>;
+  curated data: <code>dashboard/status.yaml</code>.
+</div></footer>
+<script>
+  document.getElementById("theme").addEventListener("click", function () {
+    var root = document.documentElement;
+    var dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    root.dataset.theme = dark ? "light" : "dark";
+    localStorage.setItem("mad-theme", root.dataset.theme);
+  });
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,132 @@
+# MAD status dashboard: the facts the repository cannot derive on its own.
+#
+# Everything else (model list, supported GPUs, base images, ROCm versions encoded in
+# image tags) is collected from scripts/*/models.json, scripts/*/get_models_json.py and
+# docker/*.Dockerfile by tools/dashboard/collect.py.
+#
+# THIS FILE IS PUBLIC. It is published on GitHub Pages from ROCm/MAD. Only add roadmap
+# items that are cleared for external disclosure; keep anything else in
+# dashboard/roadmap.internal.yaml (gitignored, used only by `build.py --internal`).
+#
+# Build:   python3 tools/dashboard/build.py --out _site
+# Release: python3 tools/dashboard/build.py --freeze v26.10   (then commit dashboard/releases/)
+
+# Release this snapshot rolls up to (YY.MM, same convention as the docker tags).
+release: v26.10
+
+# Registry directory (scripts/<dir>) -> how it is shown. Order here is display order.
+# workload: inference | training | microbenchmark.
+# by_launcher: split the registry by its launcher tag (tags[1]), e.g. Primus Megatron.
+frameworks:
+  vllm:                      {name: vLLM, workload: inference}
+  vllm_dissag:               {name: vLLM disaggregated P/D, workload: inference}
+  sglang:                    {name: SGLang, workload: inference}
+  sglang_disagg:             {name: SGLang disaggregated P/D, workload: inference}
+  atom:                      {name: ATOM, workload: inference}
+  pyt_xdit:                  {name: xDiT diffusion, workload: inference}
+  mochi:                     {name: PyTorch inference, workload: inference}
+  pyt_chai1_inference:       {name: PyTorch inference, workload: inference}
+  pyt_clip_inference:        {name: PyTorch inference, workload: inference}
+  pyt_hy_video:              {name: PyTorch inference, workload: inference}
+  pyt_wan2.1_inference:      {name: PyTorch inference, workload: inference}
+  primus_train:              {name: Primus, workload: training, by_launcher: true}
+  jax-maxtext:               {name: JAX MaxText, workload: training}
+  jax-maxdiffusion:          {name: JAX MaxDiffusion, workload: training}
+  pytorch_train:             {name: PyTorch training, workload: training}
+  pyt_huggingface_diffusers: {name: PyTorch training, workload: training}
+  huggingface_bert:          {name: PyTorch training, workload: training}
+  huggingface_gpt2:          {name: PyTorch training, workload: training}
+  ncf:                       {name: PyTorch training, workload: training}
+  large-ep-benchmark:        {name: Large EP microbenchmark, workload: microbenchmark}
+  kvcache_transfer_bench:    {name: KV cache transfer microbenchmark, workload: microbenchmark}
+
+# Tags worth a column in the model tables, with the legend shown on the page.
+suite_tags:
+  vllm_default: vLLM default suite
+  vllm_extended: vLLM extended suite
+  agentic: Agentic (multi-turn) workload
+  niah: Needle-in-a-haystack long-context accuracy
+  mori_ep: MoRI expert-parallel transport
+  mori_io: MoRI-IO KV transfer
+  mori_dp: MoRI data-parallel attention
+  mooncake: Mooncake KV transfer
+  nixl: NIXL KV transfer
+  deepep: DeepEP expert-parallel transport
+  large_ep_scaling: Large-EP scaling sweep
+  t2i: Text-to-image
+  ti2i: Text+image-to-image
+  tmi2i: Text+multi-image-to-image
+  t2v: Text-to-video
+  i2v: Image-to-video
+  t2av: Text-to-audio+video
+  lora: LoRA fine-tuning
+
+# Registered entries that are smoke tests, not supported models.
+exclude:
+  - dummy/dummy_multi
+  - primus_train/default
+  - jax-maxtext/default
+  - jax-maxdiffusion/default
+
+# ROCm version for images whose tag does not encode one, keyed by madengine dockerfile
+# reference. Leave a value empty to show "unknown" (build --strict fails on those).
+rocm_overrides:
+  docker/pyt_vllm: "7.2.3"                    # benchmark/vllm/README.md overview
+  docker/vllm_disagg_inference: "7.2"         # docker/vllm_disagg_inference.ubuntu.amd.Dockerfile header
+  docker/pyt_xdit: "TheRock preview"          # benchmark/xdit/README.md
+  # TODO(owners): fill in from the image release notes.
+  docker/vllm_disagg_inference.glmv5.1: ""    # rocm/vllm-dev:ci_base-dedbf6be...
+  docker/primus: ""                           # rocm/primus:v26.7
+  docker/primus_maxtext: ""                   # rocm/jax-training:maxtext-v26.7
+  docker/primus_maxdiffusion: ""              # rocm/jax-training:maxtext-v26.7
+  docker/pytorch_train: ""                    # unifiedtrainingdockers.azurecr.io/utd/ci:primus_the_rock_ci_*
+  docker/pyt_training_huggingface: ""         # rocm/pytorch-training:v25.5
+  docker/pyt_ncf_training: ""                 # rocm/pytorch-training:v25.5
+
+# Oncoming model plan. PUBLIC-SAFE ITEMS ONLY (see header).
+# status: planned | in-progress | blocked
+roadmap: []
+#  - model: Example-Model-70B
+#    framework: vLLM
+#    target: v26.11
+#    skus: [MI355X]
+#    status: planned
+#    note: optional one-liner
+
+# QA scope. Statements derivable from the registry (performance coverage, multi-node runs,
+# NIAH, floating :latest images) are added automatically; list the rest here.
+qa:
+  covered:
+    - area: Serving accuracy (GSM8K via lm-eval, 250 samples)
+      scope: vLLM serving benchmarks
+      note: Runs after each serving benchmark unless the config sets --run_accuracy False (Kimi-K3 does). Source scripts/vllm/run_vllm.py.
+    - area: Accuracy (GSM8K 5-shot, opt-in)
+      scope: ATOM Kimi-K3
+      note: Separate config scripts/atom/configs/accuracy.yaml; the registered pyt_atom_kimi-k3 run uses configs/default.yaml and does not include it.
+  not_covered:
+    - area: Accuracy pass/fail gating
+      scope: All frameworks
+      note: Accuracy scores are recorded next to the performance results; MAD does not fail a run on a score threshold.
+    - area: Training convergence / loss quality
+      scope: Primus, JAX MaxText/MaxDiffusion, PyTorch training
+      note: Training runs report throughput (TFLOP/s, tokens/s); loss curves and model quality are not checked.
+    - area: Per-product hardware validation from the registry
+      scope: All models
+      note: The GPU columns reflect where madengine will run a model (skip_gpu_arch / config directory), not where it was last tested. See CI coverage.
+    - area: Multi-node JAX models
+      scope: grok1, Llama 3.1 405B, Mixtral 8x22B (MaxText)
+      note: Excluded from discovery unless JAX_MAXTEXT_INCLUDE_MULTINODE=1.
+
+# Architectures with CI. GPU CI runs outside GitHub, so this is maintained by hand.
+# TODO(owners): add one entry per product with GPU CI, e.g.
+#  - name: Nightly vLLM performance
+#    skus: [MI300X, MI355X]
+#    cadence: nightly
+#    suites: [vllm_default]
+#    runner: internal GPU cluster
+ci:
+  - name: Model registry discovery and dashboard build
+    skus: []
+    cadence: every pull request and push to develop
+    suites: [all registered models (GPU-free)]
+    runner: GitHub Actions (.github/workflows/dashboard.yml)

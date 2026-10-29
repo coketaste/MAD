@@ -1,0 +1,33 @@
+{% extends "base.html.j2" %}
+{% block title %}MAD status — releases{% endblock %}
+{% block content %}
+<header class="page">
+  <h1>Releases</h1>
+  <div class="meta">Each MAD release freezes a snapshot of the dashboard; frozen pages never change.</div>
+</header>
+<section>
+  <div class="card">
+    <table>
+      <thead><tr><th>Release</th><th>Frozen on</th><th class="num">Models</th><th class="num">Base images</th><th>Commit</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><a href="{{ root }}/index.html">{{ snap.release }} (in progress)</a></td>
+          <td class="muted">live</td>
+          <td class="num">{{ snap.models | length }}</td>
+          <td class="num">{{ snap.images | length }}</td>
+          <td>{% if snap.commit %}<code>{{ snap.commit[:10] }}</code>{% endif %}</td>
+        </tr>
+      {% for r in releases %}
+        <tr>
+          <td><a href="{{ root }}/{{ r.version }}/index.html">{{ r.version }}</a></td>
+          <td>{{ r.date }}</td>
+          <td class="num">{{ r.models | length }}</td>
+          <td class="num">{{ r.images | length }}</td>
+          <td>{% if r.commit %}<a href="https://github.com/ROCm/MAD/tree/{{ r.commit }}"><code>{{ r.commit[:10] }}</code></a>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
