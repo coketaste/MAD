@@ -32,6 +32,7 @@ import jinja2
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import collect  # noqa: E402
+import icons  # noqa: E402
 import recipes  # noqa: E402
 
 DASHBOARD_DIR = os.path.join(collect.REPO_ROOT, "dashboard")
@@ -226,10 +227,13 @@ def version_links(trees, current, full_path, rel):
 def render(env, template, out_dir, full_path, **context):
     out_path = os.path.join(out_dir, full_path)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    site = up(full_path)
+    # `gh`: the GitHub repo the snapshot describes (ROCm/MAD, or whatever --repo-root points at).
+    gh = "https://github.com/" + context["snap"].get("source_repo", recipes.DEFAULT_REPO)
+    # Icon helper bound to this page: it records the marks used so the page can ship one small sprite.
+    page_icons = env.globals["icon_set"].bind(site)
     with open(out_path, "w") as f:
-        # `gh`: the GitHub repo the snapshot describes (ROCm/MAD, or whatever --repo-root points at).
-        gh = "https://github.com/" + context["snap"].get("source_repo", recipes.DEFAULT_REPO)
-        f.write(env.get_template(template).render(site=up(full_path), gh=gh, **context))
+        f.write(env.get_template(template).render(site=site, gh=gh, icons=page_icons, **context))
 
 
 def write_csv(snapshot, path):
@@ -306,7 +310,7 @@ def check_links(out_dir):
     return broken
 
 
-def build_site(out_dir, snapshot, releases):
+def build_site(out_dir, snapshot, releases, logos=None):
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(TEMPLATES_DIR),
         autoescape=jinja2.select_autoescape(["html", "j2"]),
@@ -314,9 +318,14 @@ def build_site(out_dir, snapshot, releases):
         lstrip_blocks=True,
         undefined=jinja2.StrictUndefined,
     )
+    icon_set = icons.IconSet(mode=logos)
+    env.globals["icon_set"] = icon_set
     if os.path.isdir(out_dir):
         shutil.rmtree(out_dir)
     os.makedirs(out_dir)
+    # Provider logos live once at the site root, shared by every version tree.
+    if icon_set.logo_files():
+        shutil.copytree(os.path.join(icons.LOGOS_DIR, "providers"), os.path.join(out_dir, "logos", "providers"))
     # Pages runs Jekyll otherwise, which is slow and skips underscore paths.
     open(os.path.join(out_dir, ".nojekyll"), "w").close()
 
@@ -368,6 +377,8 @@ def main():
                         help="MAD checkout to describe (default: this one); dashboard/ data always comes from here")
     parser.add_argument("--source-repo", help="GitHub owner/name of --repo-root for links and recipes (default: its origin)")
     parser.add_argument("--offline", action="store_true", help="do not read the roadmap from GitHub")
+    parser.add_argument("--logos", choices=["official", "neutral"],
+                        help="brand logos or neutral monograms/glyphs (default: `logos:` in dashboard/icons.yaml)")
     parser.add_argument("--roadmap-report", action="store_true",
                         help="print open model PRs missing the roadmap label and landed-but-open items, then exit")
     args = parser.parse_args()
@@ -408,7 +419,7 @@ def main():
         return
 
     releases = load_releases()
-    n_pages = build_site(args.out, snapshot, releases)
+    n_pages = build_site(args.out, snapshot, releases, logos=args.logos)
     print(f"Wrote {args.out}: {n_pages} recipe pages, {len(snapshot['models'])} models, {len(snapshot['images'])} images, "
           f"{len(releases)} frozen release(s){' [INTERNAL - do not publish]' if snapshot['internal'] else ''}")
 

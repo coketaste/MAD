@@ -19,13 +19,13 @@
   <div class="section-head"><span class="label">This release</span></div>
   <div class="grid overview">
     <a class="tile" href="{{ root }}/models/index.html">
-      <div class="t-name"><span>Model support</span><span class="faint">→</span></div>
+      <div class="t-name"><span class="with-ico">{{ icons.glyph("cube", 18) }}Model support</span><span class="faint">→</span></div>
       <div class="t-value">{{ cat.families | length }}</div>
       <div class="t-sub">models · {{ snap.models | length }} configurations · {{ cat.frameworks | length }} frameworks</div>
       <div class="gpu-row">{% for sku in snap.skus %}<div><b>{{ cat.sku_families[sku] }}</b>{{ sku }}</div>{% endfor %}</div>
     </a>
     <a class="tile" href="{{ root }}/rocm/index.html">
-      <div class="t-name"><span>ROCm support matrix</span><span class="faint">→</span></div>
+      <div class="t-name"><span class="with-ico">{{ icons.glyph("layers", 18) }}ROCm support matrix</span><span class="faint">→</span></div>
       <div class="t-value">{{ rocm_known | length }}</div>
       <div class="t-sub">ROCm versions across {{ snap.images | length }} base images</div>
       <ul>
@@ -37,17 +37,17 @@
       </ul>
     </a>
     <a class="tile" href="{{ root }}/qa/index.html">
-      <div class="t-name"><span>QA coverage</span><span class="faint">→</span></div>
+      <div class="t-name"><span class="with-ico">{{ icons.glyph("shield", 18) }}QA coverage</span><span class="faint">→</span></div>
       <div class="t-value">{{ snap.qa.covered | length }} <span class="faint" style="font-size:16px">covered</span> · {{ snap.qa.not_covered | length }} <span class="faint" style="font-size:16px">not covered</span></div>
       <ul>{% for q in snap.qa.not_covered[:3] %}<li>Not covered: {{ q.area }}</li>{% endfor %}</ul>
     </a>
     <a class="tile" href="{{ root }}/ci/index.html">
-      <div class="t-name"><span>CI coverage</span><span class="faint">→</span></div>
+      <div class="t-name"><span class="with-ico">{{ icons.glyph("server", 18) }}CI coverage</span><span class="faint">→</span></div>
       <div class="t-value">{{ ci_covered }} <span class="faint" style="font-size:16px">of {{ snap.skus | length }} GPU products</span></div>
       <div class="gpu-row">{% for sku in snap.skus %}<div>{% if view.ci_skus[sku] %}<span class="status good">CI</span>{% else %}<span class="status critical">none</span>{% endif %}<br>{{ sku }}</div>{% endfor %}</div>
     </a>
     <a class="tile" href="{{ root }}/roadmap/index.html">
-      <div class="t-name"><span>Oncoming models</span><span class="faint">→</span></div>
+      <div class="t-name"><span class="with-ico">{{ icons.glyph("flag", 18) }}Oncoming models</span><span class="faint">→</span></div>
       <div class="t-value">{{ snap.roadmap | length }}</div>
       <div class="t-sub">tracked in GitHub issues and pull requests</div>
       <div class="gpu-row">{% for st in ["in review", "in progress", "planned", "blocked"] %}<div><b>{{ snap.roadmap | selectattr("status", "defined") | selectattr("status", "equalto", st) | list | length }}</b>{{ st }}</div>{% endfor %}</div>

@@ -25,6 +25,8 @@
     --good: #16a34a;
     --warning: #f59e0b;
     --critical: #dc2626;
+    --mg-bg: 91%;
+    --mg-fg: 30%;
     --sans: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
     --mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
   }
@@ -33,14 +35,14 @@
       color-scheme: dark;
       --bg: #0a0a0a; --subtle: #111113; --code: #18181b; --ink: #fafafa; --ink-2: #a1a1aa; --ink-3: #71717a;
       --line: #27272a; --line-2: #3f3f46; --accent: #60a5fa; --sel-bg: #172554; --sel-line: #3b82f6; --sel-ink: #dbeafe;
-      --good-ink: #4ade80;
+      --good-ink: #4ade80; --mg-bg: 24%; --mg-fg: 82%;
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
     --bg: #0a0a0a; --subtle: #111113; --code: #18181b; --ink: #fafafa; --ink-2: #a1a1aa; --ink-3: #71717a;
     --line: #27272a; --line-2: #3f3f46; --accent: #60a5fa; --sel-bg: #172554; --sel-line: #3b82f6; --sel-ink: #dbeafe;
-    --good-ink: #4ade80;
+    --good-ink: #4ade80; --mg-bg: 24%; --mg-fg: 82%;
   }
 
   * { box-sizing: border-box; }
@@ -54,6 +56,15 @@
   .faint { color: var(--ink-3); }
   .label { font: 600 11px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* ---- logos and icons ---- */
+  .plogo, .mg { width: var(--s, 24px); height: var(--s, 24px); border-radius: 22%; flex: none; vertical-align: middle; }
+  .plogo { display: inline-block; object-fit: cover; background: #fff; border: 1px solid var(--line); }
+  .mg { display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: calc(var(--s, 24px) * .42); line-height: 1; letter-spacing: -.02em;
+        background: hsl(var(--h) 55% var(--mg-bg)); color: hsl(var(--h) 55% var(--mg-fg)); }
+  .ico { width: var(--s, 18px); height: var(--s, 18px); color: var(--ink-2); flex: none; vertical-align: middle; }
+  .with-ico { display: inline-flex; align-items: center; gap: 8px; }
+  .with-ico > .ico, .with-ico > .plogo, .with-ico > .mg { margin-top: 1px; }
 
   /* ---- top bar ---- */
   .topbar { position: sticky; top: 0; z-index: 20; background: var(--bg); border-bottom: 1px solid var(--line); }
@@ -88,7 +99,8 @@
 
   /* ---- page scaffolding ---- */
   header.page { padding: 36px 0 4px; }
-  header.page h1 { font-size: 30px; line-height: 1.15; margin: 0 0 6px; letter-spacing: -0.02em; }
+  header.page h1 { font-size: 30px; line-height: 1.15; margin: 0 0 6px; letter-spacing: -0.02em; display: flex; align-items: center; gap: 12px; }
+  header.page h1 .ico { --s: 28px; color: var(--ink-3); }
   header.page .lede { color: var(--ink-2); margin: 0; max-width: 900px; }
   header.page .meta { color: var(--ink-3); font-size: 13px; margin-top: 6px; }
   section { margin: 32px 0; }
@@ -104,7 +116,7 @@
   /* ---- chips & pills ---- */
   .chip { display: inline-flex; align-items: center; gap: 4px; font: 11.5px/1.7 var(--mono); padding: 0 7px; margin: 0 4px 4px 0; border: 1px solid var(--line); border-radius: 6px; color: var(--ink-2); white-space: nowrap; }
   .chip.solid { border-color: var(--ink); color: var(--ink); }
-  .pill { font: 13px var(--sans); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 5px 11px; cursor: pointer; display: inline-flex; gap: 6px; align-items: baseline; }
+  .pill { font: 13px var(--sans); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 5px 11px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
   .pill small { font: 11.5px var(--mono); color: var(--ink-3); }
   .pill:hover { border-color: var(--line-2); }
   .pill[aria-pressed="true"] { border-color: var(--sel-line); background: var(--sel-bg); color: var(--sel-ink); font-weight: 600; }
@@ -198,7 +210,9 @@
   <a href="https://github.com/ROCm/madengine">madengine</a>
   <a href="{{ site }}/releases/index.html">Releases</a>
   <span>Generated from {% if snap.commit %}<a href="{{ gh }}/commit/{{ snap.commit }}" class="mono">{{ snap.commit[:10] }}</a>{% else %}a local tree{% endif %} on {{ snap.date }}. Curated data: <code>dashboard/status.yaml</code>.</span>
+  {% if icons.official %}<div style="margin-top:8px">Logos and names are trademarks of their respective owners and are used only to identify models, frameworks and hardware. See <a href="{{ gh }}/blob/develop/dashboard/logos/NOTICE.md">logo sources</a>.</div>{% endif %}
 </div></footer>
+{{ icons.sprite() }}
 <script src="{{ root }}/search.js"></script>
 <script>
   document.getElementById("theme").addEventListener("click", function () {

@@ -22,7 +22,7 @@
 {% endblock %}
 {% block body %}
 <main class="wrap">
-  {{ ui.page_header("Model support", "Every model MAD benchmarks on AMD Instinct GPUs. Each row opens its recipe: the madengine command and the plain Docker commands for the GPU you pick.", snap) }}
+  {{ ui.page_header("Model support", "Every model MAD benchmarks on AMD Instinct GPUs. Each row opens its recipe: the madengine command and the plain Docker commands for the GPU you pick.", snap, glyph="cube") }}
 
   <details class="more" id="summary" open>
     <summary>Support summary by framework</summary>
@@ -36,7 +36,7 @@
         <tbody>
         {% for fw in cat.frameworks %}
           <tr>
-            <td><a href="?fw={{ fw.slug }}" data-set-fw="{{ fw.slug }}">{{ fw.name }}</a></td>
+            <td><span class="with-ico">{{ icons.framework(fw.name, 18) }}<a href="?fw={{ fw.slug }}" data-set-fw="{{ fw.slug }}">{{ fw.name }}</a></span></td>
             <td>{{ fw.workload }}</td>
             <td class="num">{{ fw.families | length }}</td>
             <td class="num">{{ fw.models }}</td>
@@ -88,11 +88,11 @@
       </tr></thead>
       {% for fw in cat.frameworks %}
       <tbody data-group="{{ fw.slug }}">
-        <tr class="group"><th colspan="{{ 4 + snap.skus | length }}">{{ fw.name }}<span>{{ fw.workload }}</span></th></tr>
+        <tr class="group"><th colspan="{{ 4 + snap.skus | length }}"><span class="with-ico">{{ icons.framework(fw.name, 20) }}{{ fw.name }}</span><span>{{ fw.workload }}</span></th></tr>
         {% for f in fw.families %}
         {% set href = root ~ "/models/" ~ f.page ~ "/index.html" %}
         <tr class="item" data-fw="{{ f.fw_slug }}" data-workload="{{ f.workload }}" data-skus="{{ f.skus | join(' ') }}" data-prec="{{ f.precisions | join(' ') }}" data-nodes="{{ f.nodes }}" data-k="{{ f.search }}">
-          <td><a href="{{ href }}" class="m-name">{{ f.name }}</a>{% if f.org %}<div class="m-org">{{ f.org }}</div>{% endif %}</td>
+          <td><div class="with-ico" style="gap:10px">{{ icons.logo(f.name, f.org, 30) }}<div><a href="{{ href }}" class="m-name">{{ f.name }}</a>{% if f.org %}<div class="m-org">{{ f.org }}</div>{% endif %}</div></div></td>
           <td>{% for v in f.variants %}<span class="chip">{{ v.label }}</span>{% endfor %}</td>
           {% for sku in snap.skus %}<td class="mark">{{ ui.support_cell(f.support[sku], sku, href ~ "?sku=" ~ sku) }}</td>{% endfor %}
           <td class="muted" style="white-space:nowrap">{{ f.gpus }}{% if f.nodes > 1 %} × {{ f.nodes }}{% endif %}</td>
@@ -107,12 +107,14 @@
   <div id="view-cards" hidden>
   {% for fw in cat.frameworks %}
     <div class="fw-block" data-group="{{ fw.slug }}">
-      <h3>{{ fw.name }} <span class="faint">{{ fw.workload }}</span></h3>
+      <h3><span class="with-ico">{{ icons.framework(fw.name, 20) }}{{ fw.name }}</span> <span class="faint">{{ fw.workload }}</span></h3>
       <div class="grid">
       {% for f in fw.families %}
         <a class="tile item" href="{{ root }}/models/{{ f.page }}/index.html" data-fw="{{ f.fw_slug }}" data-workload="{{ f.workload }}" data-skus="{{ f.skus | join(' ') }}" data-prec="{{ f.precisions | join(' ') }}" data-nodes="{{ f.nodes }}" data-k="{{ f.search }}">
-          <div class="t-name">{{ f.name }}</div>
-          <div class="t-org">{{ f.org or f.framework }}</div>
+          <div class="with-ico" style="gap:10px;align-items:flex-start;margin-bottom:8px">
+            {{ icons.logo(f.name, f.org, 38) }}
+            <div style="min-width:0"><div class="t-name">{{ f.name }}</div><div class="t-org" style="margin-bottom:0">{{ f.org or f.framework }}</div></div>
+          </div>
           <div>
             {% for p in f.precisions %}<span class="chip">{{ p }}</span>{% endfor %}
             <span class="chip">{{ f.gpus }}</span>

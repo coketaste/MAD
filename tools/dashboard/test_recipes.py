@@ -167,7 +167,17 @@ def fake_snapshot(state="live", version="v26.10"):
         "images": [{"dockerfile": "docker/pyt_vllm", "path": "docker/pyt_vllm.ubuntu.amd.Dockerfile",
                     "image": "vllm/vllm-openai-rocm:v0.29.0", "rocm": "7.2.3", "rocm_source": "status.yaml",
                     "frameworks": ["vLLM", "vLLM disaggregated P/D"], "skus": skus, "models": 3}],
-        "registries": [], "suite_tags": {}, "roadmap": [{"model": "Next-Model", "target": "v26.11"}],
+        "registries": [], "suite_tags": {},
+        "roadmap": [
+            {"model": "Next-Model", "target": "v26.11", "source": "status.yaml"},          # hand-written item
+            {"source": "issue", "number": 5, "url": "https://github.com/ROCm/MAD/issues/5", "title": "[Model]: X",
+             "model": "zai-org/GLM-5.3-Flash", "hf_repo": "zai-org/GLM-5.3-Flash", "framework": "vLLM",
+             "skus": ["MI300X"], "tags": ["vllm/a"], "target": "v26.11", "status": "in progress",
+             "prs": [{"number": 6, "url": "https://github.com/ROCm/MAD/pull/6", "draft": True}], "updated": "2026-10-29"},
+            {"source": "pr", "number": 7, "url": "https://github.com/ROCm/MAD/pull/7", "title": "Add Y",
+             "model": "Y-Model", "hf_repo": None, "framework": "vLLM disaggregated P/D", "skus": [], "tags": [],
+             "target": "", "status": "in review", "prs": [], "updated": "2026-10-28"},   # PR-only: no HF id
+        ],
         "qa": {"covered": [{"area": "Perf", "scope": "all"}], "not_covered": []},
         "ci": [{"name": "Nightly", "skus": ["MI355X"], "cadence": "nightly"}], "warnings": [],
     }
@@ -196,3 +206,12 @@ def test_site_renders_every_page_with_no_broken_links(tmp_path):
         assert 'value="../../../v26.9/models/index.html"' in f.read()
     with open(os.path.join(out, "index.html")) as f:
         assert "2 added, 0 removed" in f.read()
+    with open(os.path.join(out, "roadmap/index.html")) as f:
+        roadmap = f.read()
+    assert "Issue #5" in roadmap and "PR #6" in roadmap and "Y-Model" in roadmap
+    # Logos: the Llama row resolves a vendored provider logo, copied once to the site root.
+    assert os.path.exists(os.path.join(out, "logos/providers/meta-llama.png"))
+    with open(os.path.join(out, "models/index.html")) as f:
+        assert 'src="../logos/providers/meta-llama.png"' in f.read()
+    with open(os.path.join(out, "v26.9/models/vllm/llama/index.html")) as f:
+        assert 'src="../../../../logos/providers/meta-llama.png"' in f.read()   # frozen trees share the root logos

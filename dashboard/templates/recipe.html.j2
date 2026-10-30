@@ -38,7 +38,7 @@
   .row .label { padding-top: 7px; }
   .row .opts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .row .sub { display: flex; gap: 10px; align-items: center; }
-  .row .sub > .faint { font: 600 11px var(--sans); letter-spacing: .06em; width: 44px; }
+  .row .sub > .faint { font: 600 11px var(--sans); letter-spacing: .06em; width: 64px; }
   .row .help { color: var(--ink-2); font-size: 12.5px; margin-top: 8px; }
   .crumbs { font-size: 13px; color: var(--ink-3); margin-bottom: 10px; }
   .crumbs a { color: var(--ink-2); }
@@ -59,13 +59,13 @@
   {% for fw in frameworks %}
     {% if fw.slug == f.fw_slug %}
     <details open>
-      <summary>{{ fw.name }}</summary>
+      <summary><span class="with-ico" style="gap:8px">{{ icons.framework(fw.name, 16) }}{{ fw.name }}</span></summary>
       <ul>{% for other in fw.families %}
         <li><a href="{{ root }}/models/{{ other.page }}/index.html"{% if other.page == f.page %} aria-current="page"{% endif %} title="{{ other.name }}">{{ other.name }}</a></li>
       {% endfor %}</ul>
     </details>
     {% else %}
-    <a class="fw-link" href="{{ root }}/models/index.html?fw={{ fw.slug }}">{{ fw.name }}</a>
+    <a class="fw-link" href="{{ root }}/models/index.html?fw={{ fw.slug }}"><span class="with-ico" style="gap:8px">{{ icons.framework(fw.name, 16) }}{{ fw.name }}</span></a>
     {% endif %}
   {% endfor %}
   </aside>
@@ -73,16 +73,19 @@
   <main class="content">
     <div class="m-head">
       <nav class="crumbs" aria-label="Breadcrumb"><a href="{{ root }}/models/index.html">Models</a> › <a href="{{ root }}/models/index.html?fw={{ f.fw_slug }}">{{ f.framework }}</a> › {{ f.name }}</nav>
-      <h1>{% if f.org %}<span class="org">{{ f.org }}/</span>{% endif %}{{ f.name }}</h1>
+      <div class="with-ico" style="gap:14px;align-items:center;margin-bottom:6px">
+        {{ icons.logo(f.name, f.org, 52) }}
+        <h1 style="margin:0">{% if f.org %}<span class="org">{{ f.org }}/</span>{% endif %}{{ f.name }}</h1>
+      </div>
       <p>{{ f.framework }} {{ f.workload }} benchmark on AMD Instinct GPUs{% if f.variants | length > 1 %}, {{ f.variants | length }} variants{% endif %}.</p>
       <p class="faint" style="font-size:13px"><em>Base image <span class="mono">{{ mn.image }}</span> · ROCm {{ mn.rocm }}</em></p>
       <div class="links">
-        {% if f.hf_repo %}<a href="https://huggingface.co/{{ f.hf_repo }}">View on Hugging Face ↗</a>{% endif %}
+        {% if f.hf_repo %}<a href="https://huggingface.co/{{ f.hf_repo }}" class="with-ico" style="gap:6px">{{ icons.mark("huggingface", 15) }}View on Hugging Face ↗</a>{% endif %}
         {% if f.readme %}<a href="{{ gh }}/blob/{{ gh_ref }}/{{ f.readme }}">{{ f.framework }} guide ↗</a>{% endif %}
         <a href="{{ gh }}/tree/{{ gh_ref }}/scripts/{{ mn.registry }}">Model card and scripts ↗</a>
       </div>
       <div>
-        <span class="chip solid">{{ f.framework }}</span>
+        <span class="chip solid with-ico" style="gap:5px">{{ icons.framework(f.framework, 13) }}{{ f.framework }}</span>
         <span class="chip">{{ f.workload }}</span>
         {% for p in f.precisions %}<span class="chip">{{ p }}</span>{% endfor %}
         <span class="chip">{{ f.gpus }}</span>
@@ -111,7 +114,7 @@
       <div class="row">
         <span class="label">Hardware</span>
         <div>
-          <div class="sub"><span class="faint">AMD</span>
+          <div class="sub"><span class="faint with-ico" style="gap:6px">{{ icons.mark("amd", 15) }}AMD</span>
             <div class="opts" role="group" aria-label="GPU">
             {% for sku in snap.skus %}
               <button class="pill" type="button" data-pick="sku" data-value="{{ sku }}" data-variants="{% for v in f.variants %}{% if sku in v.by_sku %}{{ v.index }} {% endif %}{% endfor %}" aria-pressed="false">{{ sku }} <small>{{ isa_of[sku] }}</small></button>
@@ -143,7 +146,7 @@
         <div>
           <div class="opts" role="group" aria-label="Method">
           {% for m, mlabel, mhelp in methods %}
-            <button class="pill" type="button" data-pick="m" data-value="{{ m }}" aria-pressed="false">{{ mlabel }}</button>
+            <button class="pill" type="button" data-pick="m" data-value="{{ m }}" aria-pressed="false">{% if m == "docker" %}{{ icons.mark("docker", 16) }}{% else %}{{ icons.glyph("terminal", 16) }}{% endif %}{{ mlabel }}</button>
           {% endfor %}
           </div>
           {% for m, mlabel, mhelp in methods %}<div class="help" data-m-info="{{ m }}" hidden>{{ mhelp | capitalize }}.</div>{% endfor %}

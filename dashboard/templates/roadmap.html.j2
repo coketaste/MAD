@@ -5,7 +5,7 @@
 {% block body %}
 <main class="wrap">
   {{ ui.page_header("Oncoming models",
-       "Models being onboarded to MAD. Each row is an open GitHub issue or pull request; when the work merges it leaves this list and appears under Models." ~ (" Rows marked internal come from the internal roadmap." if snap.internal else ""), snap) }}
+       "Models being onboarded to MAD. Each row is an open GitHub issue or pull request; when the work merges it leaves this list and appears under Models." ~ (" Rows marked internal come from the internal roadmap." if snap.internal else ""), snap, glyph="flag") }}
   <section>
     <div class="card">
     {% if snap.roadmap %}
@@ -15,11 +15,16 @@
         {% for r in snap.roadmap %}
           <tr>
             <td>
-              {% if r.hf_repo | default(none) %}<a href="https://huggingface.co/{{ r.hf_repo }}" class="mono">{{ r.hf_repo }}</a>{% else %}{{ r.model }}{% endif %}
-              {% if r.internal | default(false) %} <span class="chip">internal</span>{% endif %}
-              {% if r.title is defined and r.title != r.model %}<div class="faint" style="font-size:12.5px">{{ r.title }}</div>{% endif %}
+              <div class="with-ico" style="gap:10px;align-items:flex-start">
+                {{ icons.logo(r.model, (r.hf_repo | default("", true)).split("/")[0] or none, 28) }}
+                <div>
+                  {% if r.hf_repo | default(none) %}<a href="https://huggingface.co/{{ r.hf_repo }}" class="mono">{{ r.hf_repo }}</a>{% else %}{{ r.model }}{% endif %}
+                  {% if r.internal | default(false) %} <span class="chip">internal</span>{% endif %}
+                  {% if r.title is defined and r.title != r.model %}<div class="faint" style="font-size:12.5px">{{ r.title }}</div>{% endif %}
+                </div>
+              </div>
             </td>
-            <td>{{ r.framework | default("–") }}</td>
+            <td>{% if r.framework | default("") and r.framework != "–" %}<span class="with-ico" style="gap:6px">{{ icons.framework(r.framework.split(", ")[0], 16) }}{{ r.framework }}</span>{% else %}–{% endif %}</td>
             {% set skus = r.skus | default([]) %}
             <td style="white-space:nowrap">{{ (snap.skus[0] ~ "–" ~ snap.skus[-1]) if skus | list == snap.skus | list else (skus | join(", ") or "–") }}</td>
             <td>

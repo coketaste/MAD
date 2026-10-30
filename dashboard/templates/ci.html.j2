@@ -4,16 +4,17 @@
 {% block style %}
   .skugrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 0 0 16px; }
   .sku .name { font-weight: 650; font-size: 17px; }
+  .sku .name .ico { color: var(--brand); }
   .sku .isa { color: var(--ink-3); font: 12px var(--mono); margin-bottom: 6px; }
 {% endblock %}
 {% block body %}
 <main class="wrap">
-  {{ ui.page_header("CI coverage by architecture", "GPU products with recurring CI, and every CI job that runs MAD models.", snap) }}
+  {{ ui.page_header("CI coverage by architecture", "GPU products with recurring CI, and every CI job that runs MAD models.", snap, glyph="server") }}
   <section>
     <div class="skugrid">
     {% for sku in snap.skus %}
       <div class="tile sku">
-        <div class="name">{{ sku }}</div>
+        <div class="name with-ico">{{ icons.glyph("chip", 20) }}{{ sku }}</div>
         <div class="isa">{{ view.sku_isa[sku] }}</div>
         {% if view.ci_skus[sku] %}
           <span class="status good">CI</span>
