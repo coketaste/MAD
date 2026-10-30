@@ -3,173 +3,152 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}MAD status{% endblock %}</title>
+<title>{% block title %}MAD Recipes{% endblock %}</title>
 <style>
-  /* Tokens: dataviz reference palette (chrome, ink, status), light and dark selected separately. */
+  /* Neutral, hairline-bordered look after recipes.vllm.ai; light and dark selected separately. */
   :root {
     color-scheme: light;
-    --page: #f9f9f7;
-    --surface: #fcfcfb;
-    --surface-2: #f0efec;
-    --ink: #0b0b0b;
-    --ink-2: #52514e;
-    --ink-3: #898781;
-    --hairline: #e1e0d9;
-    --rule: #c3c2b7;
-    --ring: rgba(11, 11, 11, 0.10);
-    --accent: #2a78d6;
+    --bg: #ffffff;
+    --subtle: #f9fafb;
+    --code: #f3f4f6;
+    --ink: #0a0a0a;
+    --ink-2: #4b5563;
+    --ink-3: #9ca3af;
+    --line: #e5e7eb;
+    --line-2: #d1d5db;
+    --accent: #2563eb;
+    --sel-bg: #eff6ff;
+    --sel-line: #3b82f6;
+    --sel-ink: #1e3a8a;
     --brand: #ed1c24;
-    --good-ink: #006300;
-    --good: #0ca30c;
-    --warning: #fab219;
-    --critical: #d03b3b;
-    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
-    --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+    --good-ink: #15803d;
+    --good: #16a34a;
+    --warning: #f59e0b;
+    --critical: #dc2626;
+    --sans: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) {
       color-scheme: dark;
-      --page: #0d0d0d;
-      --surface: #1a1a19;
-      --surface-2: #383835;
-      --ink: #f0efec;
-      --ink-2: #c3c2b7;
-      --ink-3: #898781;
-      --hairline: #2c2c2a;
-      --rule: #383835;
-      --ring: rgba(255, 255, 255, 0.10);
-      --accent: #3987e5;
-      --good-ink: #0ca30c;
+      --bg: #0a0a0a; --subtle: #111113; --code: #18181b; --ink: #fafafa; --ink-2: #a1a1aa; --ink-3: #71717a;
+      --line: #27272a; --line-2: #3f3f46; --accent: #60a5fa; --sel-bg: #172554; --sel-line: #3b82f6; --sel-ink: #dbeafe;
+      --good-ink: #4ade80;
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --page: #0d0d0d;
-    --surface: #1a1a19;
-    --surface-2: #383835;
-    --ink: #f0efec;
-    --ink-2: #c3c2b7;
-    --ink-3: #898781;
-    --hairline: #2c2c2a;
-    --rule: #383835;
-    --ring: rgba(255, 255, 255, 0.10);
-    --accent: #3987e5;
-    --good-ink: #0ca30c;
+    --bg: #0a0a0a; --subtle: #111113; --code: #18181b; --ink: #fafafa; --ink-2: #a1a1aa; --ink-3: #71717a;
+    --line: #27272a; --line-2: #3f3f46; --accent: #60a5fa; --sel-bg: #172554; --sel-line: #3b82f6; --sel-ink: #dbeafe;
+    --good-ink: #4ade80;
   }
 
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.5 var(--sans); }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--sans); }
   a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
-  code { font: 0.86em var(--mono); background: var(--surface-2); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
-  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+  code { font: 0.86em var(--mono); background: var(--code); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
+  .mono { font-family: var(--mono); }
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 0 24px; }
+  .muted { color: var(--ink-2); }
+  .faint { color: var(--ink-3); }
+  .label { font: 600 11px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-  .topbar { border-bottom: 1px solid var(--hairline); background: var(--surface); }
-  .topbar .wrap { display: flex; align-items: center; gap: 20px; height: 52px; }
-  .topbar .brand { font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 10px; }
-  .topbar .brand::before { content: ""; width: 4px; height: 20px; background: var(--brand); border-radius: 2px; }
-  .topbar nav { display: flex; gap: 16px; margin-left: auto; align-items: center; }
-  .topbar nav a { color: var(--ink-2); font-size: 14px; }
-  .topbar button { font: 13px var(--sans); color: var(--ink-2); background: none; border: 1px solid var(--hairline); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  /* ---- top bar ---- */
+  .topbar { position: sticky; top: 0; z-index: 20; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .topbar .wrap { display: grid; grid-template-columns: 1fr minmax(240px, 440px) 1fr; align-items: center; gap: 20px; height: 56px; }
+  .logo { display: flex; align-items: center; gap: 12px; color: var(--ink); font-weight: 650; font-size: 15px; }
+  .logo:hover { text-decoration: none; }
+  .logo .mark { font-size: 22px; font-weight: 750; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
+  .logo .mark::before { content: ""; width: 4px; height: 20px; border-radius: 2px; background: var(--brand); }
+  .logo .sep { color: var(--ink-3); font-weight: 400; }
+  .search { position: relative; }
+  .search input { width: 100%; font: 14px var(--sans); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px 7px 34px; }
+  .search::before { content: "⌕"; position: absolute; left: 12px; top: 5px; color: var(--ink-3); font-size: 17px; }
+  .search kbd { position: absolute; right: 10px; top: 8px; font: 11px var(--mono); color: var(--ink-3); }
+  .results { position: absolute; left: 0; right: 0; top: 40px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.12); max-height: 420px; overflow-y: auto; display: none; }
+  .results.open { display: block; }
+  .results a { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; color: var(--ink); font-size: 14px; border-bottom: 1px solid var(--line); }
+  .results a:last-child { border-bottom: 0; }
+  .results a:hover, .results a.active { background: var(--subtle); text-decoration: none; }
+  .results .fw { color: var(--ink-3); font-size: 12.5px; white-space: nowrap; }
+  .nav { display: flex; justify-content: flex-end; align-items: center; gap: 20px; }
+  .nav a { color: var(--ink-2); font-size: 14px; }
+  .nav button { background: none; border: 0; color: var(--ink-2); cursor: pointer; font-size: 16px; padding: 4px; }
 
-  header.page { padding: 32px 0 8px; }
-  header.page h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.01em; }
-  header.page .meta { color: var(--ink-2); font-size: 14px; }
-  .banner { margin: 16px 0 0; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--critical); color: var(--ink); background: var(--surface); }
-  .banner strong { color: var(--critical); }
+  /* ---- chips & pills ---- */
+  .chip { display: inline-flex; align-items: center; gap: 4px; font: 11.5px/1.7 var(--mono); padding: 0 7px; margin: 0 4px 4px 0; border: 1px solid var(--line); border-radius: 6px; color: var(--ink-2); white-space: nowrap; }
+  .chip.solid { border-color: var(--ink); color: var(--ink); }
+  .pill { font: 13px var(--sans); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 5px 11px; cursor: pointer; display: inline-flex; gap: 6px; align-items: baseline; }
+  .pill small { font: 11.5px var(--mono); color: var(--ink-3); }
+  .pill:hover { border-color: var(--line-2); }
+  .pill[aria-pressed="true"] { border-color: var(--sel-line); background: var(--sel-bg); color: var(--sel-ink); font-weight: 600; }
+  .pill[disabled] { color: var(--ink-3); text-decoration: line-through; cursor: not-allowed; background: var(--bg); border-color: var(--line); font-weight: 400; }
 
-  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 24px 0 8px; }
-  .kpi { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 14px 16px; }
-  .kpi .label { color: var(--ink-2); font-size: 13px; }
-  .kpi .value { font-size: 32px; font-weight: 650; line-height: 1.15; margin-top: 2px; }
-  .kpi .sub { color: var(--ink-3); font-size: 12.5px; margin-top: 2px; }
+  /* ---- cards ---- */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .tile { display: block; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; color: var(--ink); background: var(--bg); transition: border-color .1s; }
+  .tile:hover { border-color: var(--line-2); text-decoration: none; box-shadow: 0 1px 6px rgba(0,0,0,.05); }
+  .tile .t-name { font-weight: 650; font-size: 15px; }
+  .tile .t-org { font: 12px var(--mono); color: var(--ink-3); margin-bottom: 8px; }
+  .tile .t-desc { color: var(--ink-2); font-size: 13px; margin-top: 6px; }
+  .tile .t-foot { display: flex; justify-content: space-between; color: var(--ink-2); font-size: 13px; margin-top: 8px; }
+  .section-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--line); padding-bottom: 8px; margin: 36px 0 14px; }
 
-  .toc { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 18px 0 0; padding: 0; list-style: none; font-size: 14px; }
-
-  section { margin: 40px 0; }
-  section > h2 { font-size: 21px; margin: 0 0 4px; }
-  section > .lede { color: var(--ink-2); margin: 0 0 16px; max-width: 860px; }
-
-  .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; overflow-x: auto; }
+  /* ---- tables (status) ---- */
+  .card { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; font-size: 14px; }
-  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--hairline); vertical-align: top; }
-  th { color: var(--ink-2); font-weight: 600; font-size: 12.5px; white-space: nowrap; background: var(--surface); }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font: 600 11px var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); white-space: nowrap; background: var(--subtle); }
   tr:last-child td { border-bottom: 0; }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   td.mark, th.mark { text-align: center; width: 76px; }
-  td.muted, .muted { color: var(--ink-3); }
+  td.muted { color: var(--ink-3); }
   .yes { color: var(--good-ink); font-weight: 700; }
   .no { color: var(--ink-3); }
-  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-
-  .chip { display: inline-block; font-size: 12px; line-height: 1.6; padding: 0 7px; margin: 1px 4px 1px 0; border-radius: 999px; border: 1px solid var(--hairline); color: var(--ink-2); white-space: nowrap; }
-
-  .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 20px 0 12px; }
-  .filters input, .filters select { font: 14px var(--sans); color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 10px; }
-  .filters input { min-width: 260px; }
-  .filters .count { color: var(--ink-3); font-size: 13px; }
-
-  details.fw { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; margin: 0 0 10px; }
-  details.fw > summary { cursor: pointer; padding: 11px 14px; font-weight: 600; display: flex; gap: 10px; align-items: baseline; list-style: none; }
-  details.fw > summary::-webkit-details-marker { display: none; }
-  details.fw > summary::before { content: "▸"; color: var(--ink-3); }
-  details.fw[open] > summary::before { content: "▾"; }
-  details.fw > summary .muted { font-weight: 400; font-size: 13px; }
-  details.fw .card { border: 0; border-top: 1px solid var(--hairline); border-radius: 0 0 10px 10px; }
 
   .status { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; }
-  .status::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+  .status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
   .status.good { color: var(--good-ink); }
   .status.good::before { background: var(--good); }
   .status.warning::before { background: var(--warning); }
   .status.critical::before { background: var(--critical); }
 
-  .qa { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
-  .qa h3 { font-size: 15px; margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--hairline); }
-  .qa ul { list-style: none; margin: 0; padding: 0; }
-  .qa li { padding: 10px 14px; border-bottom: 1px solid var(--hairline); }
-  .qa li:last-child { border-bottom: 0; }
-  .qa .area { font-weight: 600; }
-  .qa .scope { color: var(--ink-2); font-size: 13.5px; }
-  .qa .note { color: var(--ink-3); font-size: 13px; }
-
-  .skugrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 16px; }
-  .sku { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 12px 14px; }
-  .sku .name { font-weight: 650; font-size: 17px; }
-  .sku .isa { color: var(--ink-3); font-size: 12.5px; margin-bottom: 6px; }
-
-  .empty { padding: 18px 14px; color: var(--ink-2); }
-  .warnings { margin-top: 16px; font-size: 13.5px; color: var(--ink-2); }
-  .warnings summary { cursor: pointer; }
-  .warnings li { margin: 3px 0; }
-
-  footer { border-top: 1px solid var(--hairline); margin-top: 56px; padding: 20px 0 40px; color: var(--ink-3); font-size: 13px; }
-  @media print { .topbar nav, .filters { display: none; } details.fw { break-inside: avoid; } }
+  footer { border-top: 1px solid var(--line); margin-top: 64px; padding: 18px 0 36px; color: var(--ink-3); font-size: 13px; }
+  footer a { color: var(--ink-2); margin-right: 18px; }
+  @media (max-width: 760px) { .topbar .wrap { grid-template-columns: 1fr auto; } .search { display: none; } }
+  @media print { .topbar, .filters { display: none; } }
+  {% block style %}{% endblock %}
 </style>
 <script>
-  // Apply the saved theme before first paint.
   (function () { var t = localStorage.getItem("mad-theme"); if (t) document.documentElement.dataset.theme = t; })();
 </script>
 </head>
 <body>
 <div class="topbar"><div class="wrap">
-  <a class="brand" href="{{ root }}/index.html">MAD status</a>
-  <nav>
-    <a href="{{ root }}/index.html">Latest</a>
-    <a href="{{ root }}/releases.html">Releases</a>
+  <a class="logo" href="{{ root }}/index.html"><span class="mark">MAD</span><span class="sep">/</span><span>Recipes</span></a>
+  <div class="search">
+    <input id="search" type="search" placeholder="Search models or frameworks…" aria-label="Search models" autocomplete="off">
+    <kbd>/</kbd>
+    <div class="results" id="search-results" role="listbox"></div>
+  </div>
+  <nav class="nav">
+    <a href="{{ root }}/index.html">Browse</a>
+    <a href="{{ root }}/status/index.html">Status</a>
     <a href="https://github.com/ROCm/MAD">GitHub</a>
-    <button type="button" id="theme" aria-label="Toggle light or dark theme">Theme</button>
+    <button type="button" id="theme" aria-label="Toggle light or dark theme">◐</button>
   </nav>
 </div></div>
-<main class="wrap">
-{% block content %}{% endblock %}
-</main>
+{% block body %}{% endblock %}
 <footer><div class="wrap">
-  Generated by <code>tools/dashboard/build.py</code> from
-  {% if snap.commit %}<a href="https://github.com/ROCm/MAD/commit/{{ snap.commit }}"><code>{{ snap.commit[:10] }}</code></a>{% else %}a local tree{% endif %}
-  on {{ snap.date }}. Model data: <code>scripts/*/models.json</code>, <code>scripts/*/get_models_json.py</code>, <code>docker/</code>;
-  curated data: <code>dashboard/status.yaml</code>.
+  <a href="https://github.com/ROCm/MAD">GitHub</a>
+  <a href="https://github.com/ROCm/madengine">madengine</a>
+  <a href="{{ root }}/status/index.html">Status report</a>
+  <a href="{{ root }}/status/releases.html">Releases</a>
+  <span>Generated from {% if snap.commit %}<a href="https://github.com/ROCm/MAD/commit/{{ snap.commit }}" class="mono">{{ snap.commit[:10] }}</a>{% else %}a local tree{% endif %} on {{ snap.date }}.</span>
 </div></footer>
+<script src="{{ root }}/search.js"></script>
 <script>
   document.getElementById("theme").addEventListener("click", function () {
     var root = document.documentElement;
@@ -177,6 +156,40 @@
     root.dataset.theme = dark ? "light" : "dark";
     localStorage.setItem("mad-theme", root.dataset.theme);
   });
+  // Top-bar search over search.js (window.MAD_INDEX); "/" focuses it.
+  (function () {
+    var input = document.getElementById("search"), box = document.getElementById("search-results");
+    var root = {{ root | tojson }}, index = window.MAD_INDEX || [], active = -1;
+    function render() {
+      var words = input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      if (!words.length) { box.classList.remove("open"); return; }
+      var hits = index.filter(function (e) { return words.every(function (w) { return e.k.indexOf(w) >= 0; }); }).slice(0, 12);
+      box.innerHTML = hits.length ? "" : '<a href="#" class="faint">No matching recipes</a>';
+      hits.forEach(function (e) {
+        var a = document.createElement("a");
+        a.href = root + "/models/" + e.p + "/index.html";
+        a.innerHTML = "<span></span><span class=fw></span>";
+        a.firstChild.textContent = e.n; a.lastChild.textContent = e.f;
+        box.appendChild(a);
+      });
+      active = -1; box.classList.add("open");
+    }
+    input.addEventListener("input", render);
+    input.addEventListener("keydown", function (ev) {
+      var links = box.querySelectorAll("a");
+      if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+        ev.preventDefault();
+        active = Math.max(0, Math.min(links.length - 1, active + (ev.key === "ArrowDown" ? 1 : -1)));
+        links.forEach(function (l, i) { l.classList.toggle("active", i === active); });
+      } else if (ev.key === "Enter" && links.length) {
+        location.href = links[Math.max(active, 0)].href;
+      } else if (ev.key === "Escape") { box.classList.remove("open"); input.blur(); }
+    });
+    document.addEventListener("click", function (ev) { if (!ev.target.closest(".search")) box.classList.remove("open"); });
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key === "/" && document.activeElement.tagName !== "INPUT") { ev.preventDefault(); input.focus(); }
+    });
+  })();
 </script>
 {% block scripts %}{% endblock %}
 </body>

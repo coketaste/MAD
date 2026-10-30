@@ -9,13 +9,56 @@
 {% set live = snap.state == "live" %}
 {% set heading = ("MAD status — " ~ snap.release ~ " (in progress)") if live else ("MAD status — " ~ snap.version) %}
 {% block title %}{{ heading }}{% endblock %}
-{% block content %}
+{% block style %}
+  header.page { padding: 36px 0 4px; }
+  header.page h1 { font-size: 32px; line-height: 1.15; margin: 0 0 6px; letter-spacing: -0.02em; }
+  header.page .meta { color: var(--ink-2); font-size: 14px; }
+  .banner { margin: 16px 0 0; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--critical); }
+  .banner strong { color: var(--critical); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 24px 0 8px; }
+  .kpi { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .kpi .value { font-size: 30px; font-weight: 650; line-height: 1.2; margin-top: 4px; }
+  .kpi .sub { color: var(--ink-3); font-size: 12.5px; margin-top: 2px; }
+  .toc { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 18px 0 0; padding: 0; list-style: none; font-size: 14px; }
+  section { margin: 44px 0; }
+  section > h2 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  section > .lede { color: var(--ink-2); margin: 0 0 16px; max-width: 880px; }
+  .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 20px 0 12px; }
+  .filters input, .filters select { font: 14px var(--sans); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  .filters input { min-width: 260px; }
+  .filters .count { color: var(--ink-3); font-size: 13px; }
+  details.fw { border: 1px solid var(--line); border-radius: 10px; margin: 0 0 10px; }
+  details.fw > summary { cursor: pointer; padding: 11px 14px; font-weight: 600; display: flex; gap: 10px; align-items: baseline; list-style: none; }
+  details.fw > summary::-webkit-details-marker { display: none; }
+  details.fw > summary::before { content: "›"; color: var(--ink-3); transition: transform .1s; }
+  details.fw[open] > summary::before { transform: rotate(90deg); }
+  details.fw > summary .muted { font-weight: 400; font-size: 13px; }
+  details.fw .card { border: 0; border-top: 1px solid var(--line); border-radius: 0 0 10px 10px; }
+  .qa { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+  .qa h3 { font-size: 15px; margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .qa ul { list-style: none; margin: 0; padding: 0; }
+  .qa li { padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .qa li:last-child { border-bottom: 0; }
+  .qa .area { font-weight: 600; }
+  .qa .scope { color: var(--ink-2); font-size: 13.5px; }
+  .qa .note { color: var(--ink-3); font-size: 13px; }
+  .skugrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 16px; }
+  .sku { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .sku .name { font-weight: 650; font-size: 17px; }
+  .sku .isa { color: var(--ink-3); font: 12px var(--mono); margin-bottom: 6px; }
+  .empty { padding: 18px 14px; color: var(--ink-2); }
+  .warnings { margin-top: 16px; font-size: 13.5px; color: var(--ink-2); }
+  .warnings summary { cursor: pointer; }
+  .warnings li { margin: 3px 0; }
+{% endblock %}
+{% block body %}
+<main class="wrap">
 <header class="page">
   <h1>{{ heading }}</h1>
   <div class="meta">
     {% if live %}Live view of <code>develop</code>{% else %}Frozen release snapshot{% endif %}
     {% if snap.commit %} at <a href="https://github.com/ROCm/MAD/tree/{{ snap.commit }}"><code>{{ snap.commit[:10] }}</code></a>{% endif %}
-    · generated {{ snap.date }}
+    · generated {{ snap.date }} · <a href="{{ root }}/status/releases.html">All releases</a>
   </div>
   {% if snap.internal %}
   <div class="banner" role="alert"><strong>Internal build.</strong> This page includes the internal roadmap from <code>dashboard/roadmap.internal.yaml</code>. Do not publish or forward outside AMD.</div>
@@ -84,7 +127,7 @@
 
   {% for g in view.groups %}
   <details class="fw" id="fw-{{ loop.index }}" data-workload="{{ g.workload }}">
-    <summary>{{ g.name }} <span class="muted"><span class="n">{{ g.models | length }}</span> models · {{ g.workload }}</span></summary>
+    <summary>{{ g.name }} <span class="muted"><span class="n">{{ g.models | length }}</span> model{{ "s" if g.models | length != 1 }} · {{ g.workload }}</span></summary>
     <div class="card">
       <table>
         <thead><tr>
@@ -101,7 +144,7 @@
             <td class="num">{{ m.n_gpus }}</td>
             <td class="num">{{ m.nodes }}</td>
             <td>{% for s in m.suites %}<span class="chip" title="{{ snap.suite_tags[s] }}">{{ s }}</span>{% endfor %}</td>
-            <td><code>{{ m.name }}</code></td>
+            <td>{% if live and m.page is defined %}<a href="{{ root }}/models/{{ m.page }}/index.html"><code>{{ m.name }}</code></a>{% else %}<code>{{ m.name }}</code>{% endif %}</td>
           </tr>
         {% endfor %}
         </tbody>
@@ -262,6 +305,7 @@
   {% endif %}
   {% endif %}
 </section>
+</main>
 {% endblock %}
 
 {% block scripts %}

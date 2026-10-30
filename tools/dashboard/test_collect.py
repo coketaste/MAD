@@ -82,7 +82,7 @@ def test_model_label():
     assert collect.model_label({"name": "xdit/pyt_xdit_flux", "args": "--workload flux"}) == ("flux", None)
     # --model_repo without an org is a MAD-internal key, not a Hugging Face repo.
     assert collect.model_label({"name": "pytorch_train/pyt_train_flux", "args": "--model_repo pyt_train_flux"}) == \
-        ("pyt_train_flux", None)
+        ("train_flux", None)
 
 
 def test_precision_of():
@@ -96,6 +96,25 @@ def test_precision_of():
 def test_nodes_of():
     assert collect.nodes_of({"args": "-N 2 -n 2"}) == 2
     assert collect.nodes_of({"args": "--model_repo a/b"}) == 1
+    assert collect.nodes_of({"args": "", "slurm": {"nodes": 2, "gpus_per_node": 8}}) == 2
+
+
+@pytest.mark.parametrize("label, family", [
+    ("Llama-3.1-405B-Instruct-MXFP4-Preview", "Llama-3.1-405B-Instruct"),
+    ("Llama-3.3-70B-Instruct-FP8-KV", "Llama-3.3-70B-Instruct"),
+    ("amd-Llama-3.3-70B-Instruct-FP8-KV", "Llama-3.3-70B-Instruct"),
+    ("gpt-oss120b-w-mxfp4-a-fp8", "gpt-oss120b"),
+    ("llama3.1_8B-BF16-pretrain", "llama3.1_8B-pretrain"),
+    ("Qwen3-8B", "Qwen3-8B"),
+])
+def test_family_of(label, family):
+    assert collect.family_of(label) == family
+
+
+def test_docker_context():
+    assert collect.docker_context({"dockerfile": "docker/pyt_vllm"}) == "./docker"
+    assert collect.docker_context({"dockerfile": "docker/primus_maxtext"}) == "."
+    assert collect.docker_context({"dockerfile": "docker/x", "dockercontext": "ctx"}) == "ctx"
 
 
 def test_framework_of_by_launcher():

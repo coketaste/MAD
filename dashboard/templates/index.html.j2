@@ -1,0 +1,110 @@
+{% extends "base.html.j2" %}
+{% block title %}MAD Recipes — AMD Instinct model benchmarks{% endblock %}
+{% block style %}
+  .hero h1 { font-size: 34px; letter-spacing: -0.02em; margin: 40px 0 6px; }
+  .hero p { color: var(--ink-2); max-width: 820px; margin: 0; }
+  .hero code { font-size: 0.82em; }
+  .stats { display: flex; flex-wrap: wrap; gap: 28px; margin: 22px 0 0; }
+  .stats div { font-size: 13px; color: var(--ink-2); }
+  .stats b { display: block; font-size: 22px; color: var(--ink); font-weight: 650; }
+  .fw-tile .t-name { display: flex; justify-content: space-between; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 0 0 6px; }
+  .filters .group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .filters input { font: 14px var(--sans); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; min-width: 240px; }
+  .fw-block h3 { font-size: 15px; margin: 26px 0 10px; display: flex; gap: 10px; align-items: baseline; }
+  .fw-block h3 .faint { font-weight: 400; font-size: 13px; }
+{% endblock %}
+{% block body %}
+<main class="wrap">
+  <div class="hero">
+    <h1>MAD Recipes</h1>
+    <p>Pick a model and an AMD Instinct GPU, then copy either the <code>madengine run</code> command or the plain
+      <code>docker build</code> / <code>docker run</code> commands that do the same thing without madengine.
+      Benchmarks maintained in <a href="https://github.com/ROCm/MAD">ROCm/MAD</a> for {{ snap.skus | join(", ") }}.
+      <a href="status/index.html">Status report {{ snap.release }} →</a></p>
+    <div class="stats">
+      <div><b>{{ families | length }}</b>recipes</div>
+      <div><b>{{ snap.models | length }}</b>model configurations</div>
+      <div><b>{{ frameworks | length }}</b>frameworks</div>
+      <div><b>{{ snap.images | map(attribute="rocm") | reject("in", ["unknown", "floating"]) | unique | list | length }}</b>ROCm versions</div>
+    </div>
+  </div>
+
+  <div class="section-head"><span class="label">Browse by framework</span><span class="faint" style="font-size:12px">{{ frameworks | length }}</span></div>
+  <div class="grid">
+  {% for fw in frameworks %}
+    <a class="tile fw-tile" href="#{{ fw.slug }}">
+      <div class="t-name"><span>{{ fw.name }}</span><span class="faint">→</span></div>
+      <div class="t-org">{{ fw.workload }}</div>
+      <div class="t-foot"><span>{{ fw.families | length }} recipe{{ "s" if fw.families | length != 1 }}</span><span class="faint">{{ fw.models }} config{{ "s" if fw.models != 1 }}</span></div>
+    </a>
+  {% endfor %}
+  </div>
+
+  <div class="section-head"><span class="label">All recipes</span><span class="faint" style="font-size:12px" id="count"></span></div>
+  <div class="filters" role="search">
+    <input id="q" type="search" placeholder="Filter recipes…" aria-label="Filter recipes">
+    <div class="group" role="group" aria-label="Workload">
+      <button class="pill" type="button" data-workload="" aria-pressed="true">All</button>
+      {% for w in frameworks | map(attribute="workload") | unique %}<button class="pill" type="button" data-workload="{{ w }}" aria-pressed="false">{{ w }}</button>{% endfor %}
+    </div>
+    <div class="group" role="group" aria-label="GPU">
+      <button class="pill" type="button" data-sku="" aria-pressed="true">Any GPU</button>
+      {% for sku in snap.skus %}<button class="pill" type="button" data-sku="{{ sku }}" aria-pressed="false">{{ sku }}</button>{% endfor %}
+    </div>
+  </div>
+  {% for fw in frameworks %}
+  <div class="fw-block" id="{{ fw.slug }}">
+    <h3>{{ fw.name }} <span class="faint">{{ fw.workload }}</span></h3>
+    <div class="grid">
+    {% for f in fw.families %}
+      <a class="tile recipe-tile" href="models/{{ f.page }}/index.html" data-workload="{{ f.workload }}" data-skus="{{ f.skus | join(' ') }}" data-k="{{ f.search }}">
+        <div class="t-name">{{ f.name }}</div>
+        <div class="t-org">{{ f.org or f.framework }}</div>
+        <div>
+          {% for p in f.precisions %}<span class="chip">{{ p }}</span>{% endfor %}
+          <span class="chip">{{ f.gpus }}</span>
+          {% if f.nodes > 1 %}<span class="chip">{{ f.nodes }} nodes</span>{% endif %}
+          {% if f.skus %}<span class="chip">{{ f.sku_label }}</span>{% endif %}
+        </div>
+        <div class="t-desc">{{ f.variants | length }} variant{{ "s" if f.variants | length != 1 }}{% if f.suites %} · {{ f.suites | join(", ") }}{% endif %}</div>
+      </a>
+    {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</main>
+{% endblock %}
+{% block scripts %}
+<script>
+  // One filter row scoping every recipe grid below it.
+  (function () {
+    var q = document.getElementById("q"), count = document.getElementById("count");
+    var state = { workload: "", sku: "" };
+    function apply() {
+      var words = q.value.trim().toLowerCase().split(/\s+/).filter(Boolean), shown = 0;
+      document.querySelectorAll(".fw-block").forEach(function (block) {
+        var n = 0;
+        block.querySelectorAll(".recipe-tile").forEach(function (t) {
+          var ok = (!state.workload || t.dataset.workload === state.workload)
+            && (!state.sku || t.dataset.skus.split(" ").indexOf(state.sku) >= 0)
+            && words.every(function (w) { return t.dataset.k.indexOf(w) >= 0; });
+          t.hidden = !ok; if (ok) n++;
+        });
+        block.hidden = n === 0; shown += n;
+      });
+      count.textContent = shown + " shown";
+    }
+    document.querySelectorAll(".filters .pill").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var key = "workload" in b.dataset ? "workload" : "sku";
+        state[key] = b.dataset[key];
+        b.parentNode.querySelectorAll(".pill").forEach(function (o) { o.setAttribute("aria-pressed", o === b); });
+        apply();
+      });
+    });
+    q.addEventListener("input", apply);
+    apply();
+  })();
+</script>
+{% endblock %}

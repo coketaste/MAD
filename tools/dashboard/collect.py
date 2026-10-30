@@ -117,6 +117,8 @@ def discover_models(repo_root=REPO_ROOT):
     for custom in discovery.custom_models:
         entry = custom.to_dict()
         entry["dockerfile"] = os.path.normpath(os.path.join("scripts", custom._fs_rel_path, custom.dockerfile))
+        # Static entries get this from discover_models(); custom ones only when selected for a run.
+        entry["scripts"] = os.path.normpath(os.path.join("scripts", custom._fs_rel_path, custom.scripts))
         entry["registry"] = custom._fs_rel_path
         entry["dynamic"] = True
         models.append(entry)
@@ -240,7 +242,7 @@ def model_label(model):
     workload = arg_value(args, "--workload")
     if workload:
         return workload, None
-    return model["name"].rsplit("/", 1)[-1], None
+    return re.sub(r"^pyt_", "", model["name"].rsplit("/", 1)[-1]), None
 
 
 def precision_of(model):
@@ -255,8 +257,33 @@ def precision_of(model):
 
 
 def nodes_of(model):
+    """Node count: the card's slurm block, else sbatch-style '-N <n>' in args, else 1."""
+    nodes = (model.get("slurm") or {}).get("nodes")
+    if nodes:
+        return int(nodes)
     n = arg_value(model.get("args", ""), "-N")
     return int(n) if n and n.isdigit() else 1
+
+
+# Precision/quantization tokens that distinguish variants of one model, not the model itself.
+_VARIANT_TOKENS = r"(?:w-[a-z0-9]+-a-[a-z0-9]+|mxfp8|mxfp4|nanoo_fp8|bf16|fp16|fp32|fp8|fp4|kv|preview)"
+
+
+def family_of(label):
+    """'Llama-3.1-405B-Instruct-MXFP4-Preview' -> 'Llama-3.1-405B-Instruct', so variants share a page."""
+    name = re.sub(rf"[-_.]{_VARIANT_TOKENS}(?=$|[-_.])", "", label, flags=re.I)
+    return re.sub(r"^amd[-_]", "", name, flags=re.I) or label
+
+
+def slugify(text):
+    return re.sub(r"[^a-z0-9.]+", "-", text.lower()).strip("-")
+
+
+def docker_context(model):
+    """Build context madengine uses: dockercontext, else repo root for Primus images, else ./docker."""
+    if model.get("dockercontext"):
+        return model["dockercontext"]
+    return "." if "primus" in model["dockerfile"].lower() else "./docker"
 
 
 def framework_of(model, frameworks):
@@ -274,6 +301,7 @@ def describe_model(model, frameworks, suite_tags, images):
     label, hf_repo = model_label(model)
     framework, workload = framework_of(model, frameworks)
     image = images[model["dockerfile"]]
+    family = family_of(label)
     return {
         "name": model["name"],
         "registry": model["registry"],
@@ -289,6 +317,23 @@ def describe_model(model, frameworks, suite_tags, images):
         "dockerfile": model["dockerfile"],
         "image": image["image"],
         "rocm": image["rocm"],
+        "family": family,
+        "page": f"{slugify(framework)}/{slugify(family)}",
+        "readme": (frameworks.get(model["registry"]) or {}).get("readme", ""),
+        # Everything a recipe needs to reproduce what madengine runs.
+        "run": {
+            "dockerfile_path": image["path"],
+            "context": docker_context(model),
+            "build_args": model.get("docker_build_arg") or {},
+            "scripts": model.get("scripts", ""),
+            "args": model.get("args", ""),
+            "env_vars": {k: str(v) for k, v in (model.get("env_vars") or {}).items()},
+            "multiple_results": model.get("multiple_results", ""),
+            "url": model.get("url", ""),
+            "data": model.get("data", ""),
+            "launcher": (model.get("distributed") or {}).get("launcher", ""),
+            "n_gpus": str(model.get("n_gpus", "-1")),
+        },
     }
 
 

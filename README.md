@@ -27,11 +27,16 @@ Below are blueprints of supported models along with their documentation.
 | [**SGLang disaggregated P/D inference with WideEP/LargeEP**](scripts/sglang_disagg/README.MD) | Distributed Inference P/D disaggregation with SGLang with WideEP/LargeEP | DeepSeek-V3, DeepSeek-R1 |
 | [**KVCache Transfer Bench**](scripts/kvcache_transfer_bench/README.md) | Inter-node Transfer Benchmark | no specific models |
 
-## Status dashboard
+## Recipes and status dashboard
 
-The [MAD status dashboard](https://rocm.github.io/MAD/) shows, per release, the supported models and GPU products, the oncoming model plan, what QA covers and what it does not, the ROCm support matrix, and the architectures with CI. It is rebuilt from `develop` by `.github/workflows/dashboard.yml`.
+[MAD Recipes](https://rocm.github.io/MAD/) is a site generated from this repository by `.github/workflows/dashboard.yml` on every push to `develop`:
 
-- Model support, base images and ROCm versions are read from `scripts/*/models.json`, `scripts/*/get_models_json.py` and `docker/`, so adding a model updates the dashboard.
+- **Recipes**: one page per model with the commands to run it on MI300X, MI325X, MI350X or MI355X, either with `madengine run` or with plain `docker build` / `docker run` (`sbatch` for multi-node models) and no madengine.
+- **Status report** (`status/`): the supported models and GPU products, the oncoming model plan, what QA covers and what it does not, the ROCm support matrix, and the architectures with CI, versioned per release.
+
+How it is maintained:
+
+- Models, recipes, base images and ROCm versions are read from `scripts/*/models.json`, `scripts/*/get_models_json.py` and `docker/`, so adding a model adds its recipe page.
 - Everything else (roadmap, QA scope, CI matrix, ROCm versions that are not in an image tag) lives in [`dashboard/status.yaml`](dashboard/status.yaml). That file is public: only add roadmap items cleared for disclosure.
 - To cut a release, run `python3 tools/dashboard/build.py --freeze v26.10` with `scripts/Primus` checked out and commit `dashboard/releases/v26.10.json`.
 - To preview locally: `pip install -r requirements.txt pyyaml jinja2`, then `python3 tools/dashboard/build.py --out _site` and open `_site/index.html`.
