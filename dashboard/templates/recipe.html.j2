@@ -1,4 +1,5 @@
 {% extends "base.html.j2" %}
+{% import "macros.html.j2" as ui %}
 {% set methods = [("madengine", "madengine CLI", "one command; madengine builds, runs and records the result"), ("docker", "Docker", "plain docker build + docker run, no madengine")] %}
 {% set mn = f.variants[0].rows[0] %}
 {% block title %}{{ f.name }} on AMD Instinct — {{ f.framework }} | MAD Recipes{% endblock %}
@@ -10,7 +11,9 @@
   .side summary::-webkit-details-marker { display: none; }
   .side summary::after { content: "›"; color: var(--ink-3); transition: transform .1s; }
   .side details[open] > summary::after { transform: rotate(90deg); }
-  .side summary:hover { background: var(--subtle); }
+  .side summary:hover, .side .fw-link:hover { background: var(--subtle); text-decoration: none; }
+  .side .fw-link { display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 7px; font-size: 14px; color: var(--ink); margin: 0 0 2px; }
+  .side .fw-link::after { content: "›"; color: var(--ink-3); }
   .side ul { list-style: none; margin: 2px 0 8px 14px; padding: 0 0 0 10px; border-left: 1px solid var(--line); }
   .side li a { display: block; font: 12.5px/1.4 var(--mono); color: var(--ink-2); padding: 4px 8px; border-radius: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .side li a:hover { background: var(--subtle); text-decoration: none; }
@@ -37,6 +40,11 @@
   .row .sub { display: flex; gap: 10px; align-items: center; }
   .row .sub > .faint { font: 600 11px var(--sans); letter-spacing: .06em; width: 44px; }
   .row .help { color: var(--ink-2); font-size: 12.5px; margin-top: 8px; }
+  .crumbs { font-size: 13px; color: var(--ink-3); margin-bottom: 10px; }
+  .crumbs a { color: var(--ink-2); }
+  .support { margin: 16px 0 0; }
+  .support td.mark a { font: 11.5px var(--mono); }
+  .side .all { display: block; padding: 6px 10px; font-size: 13.5px; color: var(--ink-2); margin-bottom: 6px; }
   .guide { border: 1px solid var(--line); border-radius: 12px; margin: 28px 0 0; padding: 4px 22px 18px; }
   .guide h2 { font-size: 20px; margin: 22px 0 8px; }
   .guide p, .guide li { color: var(--ink); }
@@ -47,6 +55,7 @@
 {% block body %}
 <div class="wrap layout">
   <aside class="side" aria-label="Recipes">
+  <a class="all" href="{{ root }}/models/index.html">← All models</a>
   {% for fw in frameworks %}
     {% if fw.slug == f.fw_slug %}
     <details open>
@@ -56,20 +65,21 @@
       {% endfor %}</ul>
     </details>
     {% else %}
-    <details><summary onclick="location.href='{{ root }}/index.html#{{ fw.slug }}'">{{ fw.name }}</summary></details>
+    <a class="fw-link" href="{{ root }}/models/index.html?fw={{ fw.slug }}">{{ fw.name }}</a>
     {% endif %}
   {% endfor %}
   </aside>
 
   <main class="content">
     <div class="m-head">
+      <nav class="crumbs" aria-label="Breadcrumb"><a href="{{ root }}/models/index.html">Models</a> › <a href="{{ root }}/models/index.html?fw={{ f.fw_slug }}">{{ f.framework }}</a> › {{ f.name }}</nav>
       <h1>{% if f.org %}<span class="org">{{ f.org }}/</span>{% endif %}{{ f.name }}</h1>
       <p>{{ f.framework }} {{ f.workload }} benchmark on AMD Instinct GPUs{% if f.variants | length > 1 %}, {{ f.variants | length }} variants{% endif %}.</p>
       <p class="faint" style="font-size:13px"><em>Base image <span class="mono">{{ mn.image }}</span> · ROCm {{ mn.rocm }}</em></p>
       <div class="links">
         {% if f.hf_repo %}<a href="https://huggingface.co/{{ f.hf_repo }}">View on Hugging Face ↗</a>{% endif %}
-        {% if f.readme %}<a href="https://github.com/ROCm/MAD/blob/develop/{{ f.readme }}">{{ f.framework }} guide ↗</a>{% endif %}
-        <a href="https://github.com/ROCm/MAD/tree/develop/scripts/{{ mn.registry }}">Model card and scripts ↗</a>
+        {% if f.readme %}<a href="https://github.com/ROCm/MAD/blob/{{ gh_ref }}/{{ f.readme }}">{{ f.framework }} guide ↗</a>{% endif %}
+        <a href="https://github.com/ROCm/MAD/tree/{{ gh_ref }}/scripts/{{ mn.registry }}">Model card and scripts ↗</a>
       </div>
       <div>
         <span class="chip solid">{{ f.framework }}</span>
@@ -145,13 +155,30 @@
       </div>
     </div>
 
+    <section class="support">
+      <h2 style="font-size:17px">Support</h2>
+      <div class="card">
+        <table>
+          <thead><tr><th>Variant</th>{% for sku in snap.skus %}<th class="mark">{{ sku }}</th>{% endfor %}</tr></thead>
+          <tbody>
+          {% for v in f.variants %}
+            <tr>
+              <td>{{ v.label }}{% if v.hf_repo %}<div class="faint mono" style="font-size:12px">{{ v.hf_repo }}</div>{% endif %}</td>
+              {% for sku in snap.skus %}<td class="mark">{% if sku in v.by_sku %}<a href="?v={{ v.index }}&amp;sku={{ sku }}" data-select-v="{{ v.index }}" data-select-sku="{{ sku }}" title="{{ v.by_sku[sku].name }}"><span class="yes">✓</span><span class="sr"> {{ sku }}: </span></a>{% else %}{{ ui.mark(false, sku) }}{% endif %}</td>{% endfor %}
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <div class="guide">
       {% for v in f.variants %}{% for row in v.rows %}
       <div data-guide="{{ v.index }}" data-guide-skus="{{ row.skus | join(' ') }}" hidden>
         <h2>Overview</h2>
         <p>{% if row.hf_repo %}<a href="https://huggingface.co/{{ row.hf_repo }}">{{ row.hf_repo }}</a>{% else %}<strong>{{ row.model }}</strong>{% endif %}
           {{ "inference" if row.workload == "inference" else row.workload }} benchmark with {{ row.framework }}.
-          The image is built from <a href="https://github.com/ROCm/MAD/blob/develop/{{ row.run.dockerfile_path }}" class="mono">{{ row.run.dockerfile_path }}</a>
+          The image is built from <a href="https://github.com/ROCm/MAD/blob/{{ gh_ref }}/{{ row.run.dockerfile_path }}" class="mono">{{ row.run.dockerfile_path }}</a>
           on <span class="mono">{{ row.image }}</span> (ROCm {{ row.rocm }}).
           {% if row.run.launcher == "slurm_multi" %}The SLURM launcher <span class="mono">{{ row.run.scripts }}</span> runs on the host{% if row.run.args %} with <code>{{ row.run.args }}</code>{% endif %} and starts one container per node.
           {% else %}<span class="mono">{{ row.run.scripts }}</span> is copied into the container and run{% if row.run.args %} with <code>{{ row.run.args }}</code>{% endif %}.{% endif %}</p>
@@ -212,6 +239,12 @@
     }
     document.querySelectorAll("[data-pick]").forEach(function (b) {
       b.addEventListener("click", function () { state[b.dataset.pick] = b.dataset.value; apply(); });
+    });
+    document.querySelectorAll("[data-select-v]").forEach(function (a) {
+      a.addEventListener("click", function (ev) {
+        ev.preventDefault(); state.v = a.dataset.selectV; state.sku = a.dataset.selectSku; apply();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
     });
     document.querySelectorAll(".copy").forEach(function (b) {
       b.addEventListener("click", function () {

@@ -1,4 +1,5 @@
 """Unit tests for recipe generation and recipe-page grouping (no madengine, Docker or GPU needed)."""
+import copy
 import os
 import sys
 
@@ -15,6 +16,7 @@ def make_row(name="vllm/pyt_vllm_x", registry="vllm", n_gpus="-1", launcher="", 
         "name": name, "registry": registry, "dockerfile": dockerfile, "nodes": nodes, "precision": precision,
         "suites": list(suites), "skus": list(skus), "page": page, "family": "X", "hf_repo": hf_repo,
         "framework": "vLLM", "workload": "inference", "readme": "", "n_gpus": "all" if n_gpus == "-1" else n_gpus,
+        "model": hf_repo.split("/")[-1] if hf_repo else name, "image": "vllm/vllm-openai-rocm:v0.29.0", "rocm": "7.2.3",
         "run": {
             "dockerfile_path": dockerfile + ".ubuntu.amd.Dockerfile",
             "context": "." if "primus" in dockerfile else "./docker",
@@ -127,3 +129,70 @@ def test_variant_label_uses_distinguishing_suites():
     rows = [make_row(suites=["vllm_disagg", "nixl"]), make_row(suites=["vllm_disagg", "mori_ep"], precision="fp8")]
     assert build._variant_label(rows[0], rows) == "nixl"
     assert build._variant_label(rows[1], rows) == "FP8 · mori_ep"
+
+
+def test_frozen_recipes_pin_the_commit():
+    row = make_row()
+    for steps in recipes.recipe(row, "MI355X", ref="abc1234").values():
+        assert "git clone https://github.com/ROCm/MAD.git\ncd MAD\ngit checkout abc1234" in steps[0]["code"]
+    assert "git checkout" not in code(recipes.recipe(row, "MI355X")["docker"])
+
+
+def test_support_states():
+    variants = [{"label": "Default", "by_sku": {"MI300X": 1, "MI355X": 1}}, {"label": "MXFP4", "by_sku": {"MI355X": 1}}]
+    cells = build.support(variants, ["MI300X", "MI325X", "MI355X"])
+    assert cells["MI355X"] == {"state": "all", "labels": ["Default", "MXFP4"]}
+    assert cells["MI300X"] == {"state": "some", "labels": ["Default"]}
+    assert cells["MI325X"]["state"] == "none"
+
+
+def test_version_order():
+    assert sorted(["10", "TheRock preview", "7.2.3", "6.3.0", "7.2"], key=build._version_order) == \
+        ["6.3.0", "7.2", "7.2.3", "10", "TheRock preview"]
+
+
+def fake_snapshot(state="live", version="v26.10"):
+    skus = ["MI300X", "MI325X", "MI350X", "MI355X"]
+    rows = [
+        make_row(name="vllm/a", page="vllm/llama", hf_repo="meta-llama/Llama"),
+        make_row(name="vllm/a_fp4", page="vllm/llama", hf_repo="amd/Llama-MXFP4", precision="mxfp4", skus=skus[2:]),
+        make_row(name="vllm_dissag/d", registry="vllm_dissag", page="vllm-disaggregated-p-d/deepseek", launcher="slurm_multi",
+                 nodes=2, args="-N 2 -n 2", scripts="scripts/vllm_dissag/run.slurm", hf_repo=None),
+    ]
+    rows[2]["framework"] = "vLLM disaggregated P/D"
+    return {
+        "schema": 1, "version": version, "release": "v26.10", "state": state, "internal": False,
+        "commit": "0123456789abcdef", "date": "2026-10-29", "skus": skus,
+        "isa_skus": {"gfx942": skus[:2], "gfx950": skus[2:]}, "models": rows,
+        "images": [{"dockerfile": "docker/pyt_vllm", "path": "docker/pyt_vllm.ubuntu.amd.Dockerfile",
+                    "image": "vllm/vllm-openai-rocm:v0.29.0", "rocm": "7.2.3", "rocm_source": "status.yaml",
+                    "frameworks": ["vLLM", "vLLM disaggregated P/D"], "skus": skus, "models": 3}],
+        "registries": [], "suite_tags": {}, "roadmap": [{"model": "Next-Model", "target": "v26.11"}],
+        "qa": {"covered": [{"area": "Perf", "scope": "all"}], "not_covered": []},
+        "ci": [{"name": "Nightly", "skus": ["MI355X"], "cadence": "nightly"}], "warnings": [],
+    }
+
+
+def test_site_renders_every_page_with_no_broken_links(tmp_path):
+    live = fake_snapshot()
+    frozen = copy.deepcopy(fake_snapshot(state="frozen", version="v26.9"))
+    frozen["models"] = frozen["models"][:1]
+    out = str(tmp_path / "site")
+    assert build.build_site(out, live, [frozen]) == 2  # raises on any broken link
+    for prefix in ("", "v26.9/"):
+        for _, rel, _ in build.SECTION_PAGES:
+            assert os.path.exists(os.path.join(out, prefix + rel)), prefix + rel
+        assert os.path.exists(os.path.join(out, prefix + "models.csv"))
+        assert os.path.exists(os.path.join(out, prefix + "models/vllm/llama/index.html"))
+    assert os.path.exists(os.path.join(out, "releases/index.html"))
+    # Recipes in the frozen tree check out its commit; develop's do not.
+    with open(os.path.join(out, "v26.9/models/vllm/llama/index.html")) as f:
+        assert "git checkout 0123456789abcdef" in f.read()
+    with open(os.path.join(out, "models/vllm/llama/index.html")) as f:
+        page = f.read()
+    assert "git checkout" not in page
+    # The disaggregated page exists only in develop, so v26.9's switcher falls back to its catalog.
+    with open(os.path.join(out, "models/vllm-disaggregated-p-d/deepseek/index.html")) as f:
+        assert 'value="../../../v26.9/models/index.html"' in f.read()
+    with open(os.path.join(out, "index.html")) as f:
+        assert "2 added, 0 removed" in f.read()

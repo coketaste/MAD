@@ -29,10 +29,12 @@ Below are blueprints of supported models along with their documentation.
 
 ## Recipes and status dashboard
 
-[MAD Recipes](https://rocm.github.io/MAD/) is a site generated from this repository by `.github/workflows/dashboard.yml` on every push to `develop`:
+[MAD Recipes](https://rocm.github.io/MAD/) is a site generated from this repository by `.github/workflows/dashboard.yml` on every push to `develop`. The top navigation has one page per question:
 
-- **Recipes**: one page per model with the commands to run it on MI300X, MI325X, MI350X or MI355X, either with `madengine run` or with plain `docker build` / `docker run` (`sbatch` for multi-node models) and no madengine.
-- **Status report** (`status/`): the supported models and GPU products, the oncoming model plan, what QA covers and what it does not, the ROCm support matrix, and the architectures with CI, versioned per release.
+- **Overview** (home): this release at a glance, and what changed since the last one.
+- **Models**: every supported model with its GPU support (MI300X, MI325X, MI350X, MI355X), filterable and exportable as CSV. Each model opens a recipe with the commands to run it, either `madengine run` or plain `docker build` / `docker run` (`sbatch` for multi-node models) with no madengine.
+- **ROCm**, **QA**, **CI**, **Roadmap**: the ROCm support matrix, what QA covers and what it does not, the architectures with CI, and the oncoming models.
+- **Releases**: every frozen release keeps the whole site under `/<version>/`, with recipes pinned to that release's commit.
 
 How it is maintained:
 

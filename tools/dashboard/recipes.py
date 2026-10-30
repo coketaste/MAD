@@ -54,8 +54,11 @@ def placeholder(value):
     return bool(re.fullmatch(r"<[^<>]+>", value.strip()))
 
 
-def get_mad(row):
+def get_mad(row, ref=None):
+    """Clone MAD; a frozen release pins the commit it was frozen from."""
     lines = [f"git clone {MAD_URL}", "cd MAD"]
+    if ref:
+        lines.append(f"git checkout {ref}")
     if needs_primus(row):
         lines.append("git submodule update --init scripts/Primus   # Primus configs and launcher")
     return "\n".join(lines)
@@ -78,10 +81,10 @@ def gpu_count(run):
 # --------------------------------------------------------------------------- madengine
 
 
-def madengine_steps(row, sku):
+def madengine_steps(row, sku, ref=None):
     tag = row["name"]
     steps = [
-        {"title": "Get MAD and madengine", "code": get_mad(row) + "\npip install -r requirements.txt"},
+        {"title": "Get MAD and madengine", "code": get_mad(row, ref) + "\npip install -r requirements.txt"},
     ]
     if not is_multi_node(row):
         steps.append({
@@ -144,9 +147,9 @@ def container_script(row):
     return "\n".join(["set -e"] + steps), model_dir
 
 
-def docker_steps(row, sku):
+def docker_steps(row, sku, ref=None):
     if is_multi_node(row):
-        return slurm_steps(row, sku)
+        return slurm_steps(row, sku, ref)
     run = row["run"]
     image = image_name(row)
     n = gpu_count(run)
@@ -176,14 +179,14 @@ def docker_steps(row, sku):
     else:
         result = "The script prints the result as a `performance: <value> <unit>` line."
     return [
-        {"title": "Get MAD", "code": get_mad(row)},
+        {"title": "Get MAD", "code": get_mad(row, ref)},
         {"title": "Build the image", "code": build_command(row, sku, image)},
         {"title": "Run the benchmark", "code": f"export HF_TOKEN=<your-hf-token>   {HF_TOKEN_NOTE}\n{run_cmd}",
          "note": f"Uses {'all ' + str(n) if n == GPUS_PER_NODE else n} GPU{'s' if n > 1 else ''}. {result}"},
     ]
 
 
-def slurm_steps(row, sku):
+def slurm_steps(row, sku, ref=None):
     run = row["run"]
     image = "<registry>/<repo>:" + image_name(row).split("/", 1)[1]
     # Submit from the registry directory (the launchers find their helpers via
@@ -198,7 +201,7 @@ def slurm_steps(row, sku):
         exports.append(f"export MAD_OUTPUT_CSV={shlex.quote(run['multiple_results'])}")
     sbatch_opts = run["args"] or f"-N {row['nodes']} -n {row['nodes']}"
     return [
-        {"title": "Get MAD", "code": get_mad(row)},
+        {"title": "Get MAD", "code": get_mad(row, ref)},
         {"title": "Build and push an image every node can pull",
          "code": build_command(row, sku, image) + f"\ndocker push {shlex.quote(image)}"},
         {"title": f"Submit the {row['nodes']}-node job",
@@ -209,9 +212,9 @@ def slurm_steps(row, sku):
     ]
 
 
-def recipe(row, sku):
-    """Both methods for one model on one GPU product."""
+def recipe(row, sku, ref=None):
+    """Both methods for one model on one GPU product; `ref` pins the MAD commit (frozen releases)."""
     return {
-        "madengine": madengine_steps(row, sku),
-        "docker": docker_steps(row, sku),
+        "madengine": madengine_steps(row, sku, ref),
+        "docker": docker_steps(row, sku, ref),
     }

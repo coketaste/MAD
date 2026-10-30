@@ -2,13 +2,14 @@
 """
 Build the MAD recipes site and status report (GitHub Pages), or freeze a release snapshot.
 
-Site layout written to --out:
-  index.html                    browse and search every recipe
+Site layout written to --out (develop at the root, each frozen release under <version>/):
+  index.html                    Overview: one card per section and changes since the last release
+  models/index.html             Model support catalog (table and card views, filters in the URL)
   models/<framework>/<model>/   one recipe page per model: madengine and plain Docker commands per GPU
-  status/index.html             live status report, diffed against the latest frozen release
-  status/<version>/index.html   one report per dashboard/releases/<version>.json
-  status/releases.html          list of frozen releases
-  search.js                     search index for the top bar
+  rocm/ qa/ ci/ roadmap/        ROCm support matrix, QA coverage, CI coverage, oncoming models
+  models.csv, search.js         config-level export and the top-bar search index
+  releases/index.html           every release (site root only)
+  <version>/...                 the same tree for dashboard/releases/<version>.json; recipes pin its commit
 
 Usage (from anywhere; needs madengine, pyyaml, jinja2):
     python3 tools/dashboard/build.py --out _site
@@ -19,6 +20,7 @@ Options:
     --strict    fail when the snapshot has warnings (unknown ROCm version, missing Primus checkout, ...)
 """
 import argparse
+import csv
 import glob
 import json
 import os
@@ -47,21 +49,10 @@ def load_releases():
 
 
 def view(snapshot):
-    """Presentation groupings computed from a snapshot (so frozen JSON stays plain data)."""
-    groups = {}
-    for row in snapshot["models"]:
-        group = groups.setdefault(row["framework"], {
-            "name": row["framework"], "workload": row["workload"], "models": [], "rocm": [],
-            "sku_counts": {sku: 0 for sku in snapshot["skus"]},
-        })
-        group["models"].append(row)
-        if row["rocm"] not in group["rocm"]:
-            group["rocm"].append(row["rocm"])
-        for sku in row["skus"]:
-            group["sku_counts"][sku] += 1
+    """CI coverage per GPU product, and each product's ISA."""
     ci_skus = {sku: [c for c in snapshot["ci"] if sku in (c.get("skus") or [])] for sku in snapshot["skus"]}
     sku_isa = {sku: isa for isa, skus in snapshot["isa_skus"].items() for sku in skus}
-    return {"groups": list(groups.values()), "ci_skus": ci_skus, "sku_isa": sku_isa}
+    return {"ci_skus": ci_skus, "sku_isa": sku_isa}
 
 
 def _variant_label(row, family_rows):
@@ -139,16 +130,49 @@ def catalog(snapshot):
             "sku_label": sku_label(skus, snapshot["skus"]),
             "gpus": ("8 GPU" if n_gpus == ["all"] else " / ".join(n_gpus) + " GPU") + ("/node" if first["nodes"] > 1 else ""),
             "nodes": max(r["nodes"] for r in rows),
+            "rocm": sorted({r["rocm"] for r in rows}),
+            "support": support(variants, snapshot["skus"]),
         }
         family["search"] = " ".join([family["name"], repo or "", family["framework"], *family["precisions"],
                                      *family["suites"], *(r["name"] for r in rows)]).lower()
         pages.append(family)
         fw = frameworks.setdefault(family["fw_slug"], {
             "slug": family["fw_slug"], "name": family["framework"], "workload": family["workload"],
-            "families": [], "models": 0})
+            "families": [], "models": 0, "rocm": [], "sku_families": {sku: 0 for sku in snapshot["skus"]}})
         fw["families"].append(family)
         fw["models"] += len(rows)
+        fw["rocm"] = sorted(set(fw["rocm"]) | set(family["rocm"]))
+        for sku in skus:
+            fw["sku_families"][sku] += 1
     return pages, list(frameworks.values())
+
+
+def support(variants, all_skus):
+    """Per GPU product: does every variant run there ('all'), some ('some', naming them), or none."""
+    cells = {}
+    for sku in all_skus:
+        labels = [v["label"] for v in variants if sku in v["by_sku"]]
+        state = "none" if not labels else "all" if len(labels) == len(variants) else "some"
+        cells[sku] = {"state": state, "labels": labels}
+    return cells
+
+
+def summarize(snapshot, pages, frameworks):
+    """Catalog-wide numbers for the Overview and the Models filters."""
+    return {
+        "families": pages,
+        "frameworks": frameworks,
+        "precisions": sorted({p for f in pages for p in f["precisions"]}),
+        "sku_families": {sku: sum(sku in f["skus"] for f in pages) for sku in snapshot["skus"]},
+        "fw_slugs": {fw["name"]: fw["slug"] for fw in frameworks},
+        "rocm_versions": sorted({i["rocm"] for i in snapshot["images"]} - {"unknown", "floating"}, key=_version_order),
+    }
+
+
+def _version_order(version):
+    """'6.3.0' < '7.2' < '7.2.3' < '10'; non-numeric labels ('TheRock preview') last."""
+    parts = re.findall(r"\d+", version)
+    return (0, tuple(int(p) for p in parts)) if re.fullmatch(r"[\d.]+", version) else (1, version)
 
 
 def search_index(pages):
@@ -161,10 +185,122 @@ def default_sku(family):
     return [s for s in family["skus"] if s in family["variants"][0]["by_sku"]][-1]
 
 
-def render(env, template, out_path, **context):
+# (template, path inside a version tree, nav key)
+SECTION_PAGES = [
+    ("overview.html.j2", "index.html", "overview"),
+    ("models.html.j2", "models/index.html", "models"),
+    ("rocm.html.j2", "rocm/index.html", "rocm"),
+    ("qa.html.j2", "qa/index.html", "qa"),
+    ("ci.html.j2", "ci/index.html", "ci"),
+    ("roadmap.html.j2", "roadmap/index.html", "roadmap"),
+]
+RELEASES_PAGE = "releases/index.html"
+CSV_COLUMNS = ["madengine_tag", "framework", "workload", "model", "hf_repo", "precision", "MI300X", "MI325X", "MI350X",
+               "MI355X", "n_gpus", "nodes", "suites", "base_image", "rocm", "recipe"]
+
+
+def up(path):
+    """Relative path from the directory of `path` back to the directory it is relative to."""
+    return "/".join([".."] * path.count("/")) or "."
+
+
+def make_tree(snapshot, prefix, label):
+    """One version of the site: its snapshot, catalog and the pages it contains."""
+    pages, frameworks = catalog(snapshot)
+    rels = {path for _, path, _ in SECTION_PAGES} | {f"models/{p['page']}/index.html" for p in pages}
+    return {"snap": snapshot, "prefix": prefix, "label": label, "pages": pages, "frameworks": frameworks,
+            "cat": summarize(snapshot, pages, frameworks), "rels": rels}
+
+
+def version_links(trees, current, full_path, rel):
+    """Version switcher: the same page in every version, else that version's nearest parent page."""
+    site = up(full_path)
+    links = []
+    for tree in trees:
+        target = rel if rel in tree["rels"] else ("models/index.html" if rel.startswith("models/") else "index.html")
+        prefix = tree["prefix"] + "/" if tree["prefix"] else ""
+        links.append({"label": tree["label"], "href": f"{site}/{prefix}{target}", "current": tree is current})
+    return links
+
+
+def render(env, template, out_dir, full_path, **context):
+    out_path = os.path.join(out_dir, full_path)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w") as f:
-        f.write(env.get_template(template).render(**context))
+        f.write(env.get_template(template).render(site=up(full_path), **context))
+
+
+def write_csv(snapshot, path):
+    with open(path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(CSV_COLUMNS)
+        for r in snapshot["models"]:
+            writer.writerow([r["name"], r["framework"], r["workload"], r["model"], r["hf_repo"] or "", r["precision"],
+                             *("yes" if sku in r["skus"] else "no" for sku in snapshot["skus"]),
+                             r["n_gpus"], r["nodes"], " ".join(r["suites"]), r["image"], r["rocm"],
+                             f"models/{r['page']}/index.html"])
+
+
+def render_site(env, out_dir, tree, trees, prev):
+    """Every page of one version tree under out_dir/<prefix>/."""
+    snapshot, prefix = tree["snap"], tree["prefix"]
+    frozen = snapshot["state"] == "frozen"
+    base = os.path.join(out_dir, prefix) if prefix else out_dir
+    os.makedirs(base, exist_ok=True)
+    with open(os.path.join(base, "search.js"), "w") as f:
+        f.write(search_index(tree["pages"]))
+    write_csv(snapshot, os.path.join(base, "models.csv"))
+
+    def page(template, rel, active, **context):
+        full = f"{prefix}/{rel}" if prefix else rel
+        render(env, template, out_dir, full, snap=snapshot, root=up(rel), active=active,
+               versions=version_links(trees, tree, full, rel), **context)
+
+    common = {"cat": tree["cat"], "view": view(snapshot)}
+    for template, rel, active in SECTION_PAGES:
+        page(template, rel, active, diff=collect.diff_snapshots(prev, snapshot), fw_slugs=tree["cat"]["fw_slugs"], **common)
+    ref = snapshot["commit"] if frozen else None
+    for family in tree["pages"]:
+        cards = [{sku: recipes.recipe(row, sku, ref) for sku, row in v["by_sku"].items()} for v in family["variants"]]
+        page("recipe.html.j2", f"models/{family['page']}/index.html", "models", f=family, frameworks=tree["frameworks"],
+             recipes=cards, isa_of=recipes.ISA_OF, default_sku=default_sku(family), gh_ref=ref or "develop")
+
+
+def release_rows(trees):
+    """Releases table, develop first, then frozen releases newest first, each diffed against the one before."""
+    rows = []
+    frozen = trees[1:]
+    for i, tree in enumerate(trees):
+        snap = tree["snap"]
+        older = frozen[-1] if i == 0 and frozen else (frozen[frozen.index(tree) - 1] if tree in frozen and frozen.index(tree) else None)
+        diff = collect.diff_snapshots(older["snap"], snap) if older else None
+        rows.append({
+            "label": f"{snap['release']} (develop)" if i == 0 else snap["version"],
+            "href": "../" + (tree["prefix"] + "/" if tree["prefix"] else "") + "index.html",
+            "date": "live" if i == 0 else snap["date"], "commit": snap["commit"],
+            "families": len(tree["pages"]), "configs": len(snap["models"]),
+            "added": len(diff["added"]) if diff else None, "removed": len(diff["removed"]) if diff else None,
+        })
+    return rows[:1] + rows[:0:-1]
+
+
+HREF_RE = re.compile(r'(?:href|src)="([^"]+)"|<option value="([^"]+\.html)"')
+
+
+def check_links(out_dir):
+    """Every relative href/src (and version-switcher target) in the site resolves to a file."""
+    broken = []
+    for html in glob.glob(os.path.join(out_dir, "**", "*.html"), recursive=True):
+        with open(html) as f:
+            text = f.read()
+        for m in HREF_RE.finditer(text):
+            link = m.group(1) or m.group(2)
+            if re.match(r"^(?:[a-z]+:|#|\?|//)", link):
+                continue
+            target = link.split("#", 1)[0].split("?", 1)[0]
+            if target and not os.path.exists(os.path.normpath(os.path.join(os.path.dirname(html), target))):
+                broken.append(f"{os.path.relpath(html, out_dir)} -> {link}")
+    return broken
 
 
 def build_site(out_dir, snapshot, releases):
@@ -181,28 +317,17 @@ def build_site(out_dir, snapshot, releases):
     # Pages runs Jekyll otherwise, which is slow and skips underscore paths.
     open(os.path.join(out_dir, ".nojekyll"), "w").close()
 
-    pages, frameworks = catalog(snapshot)
-    with open(os.path.join(out_dir, "search.js"), "w") as f:
-        f.write(search_index(pages))
-    render(env, "index.html.j2", os.path.join(out_dir, "index.html"),
-           snap=snapshot, families=pages, frameworks=frameworks, root=".")
-    for family in pages:
-        cards = [{sku: recipes.recipe(row, sku) for sku, row in v["by_sku"].items()} for v in family["variants"]]
-        render(env, "recipe.html.j2", os.path.join(out_dir, "models", family["page"], "index.html"),
-               snap=snapshot, f=family, frameworks=frameworks, recipes=cards, isa_of=recipes.ISA_OF,
-               default_sku=default_sku(family), root="../../..")
+    trees = [make_tree(snapshot, "", "develop")] + [make_tree(r, r["version"], r["version"]) for r in releases]
+    render_site(env, out_dir, trees[0], trees, releases[-1] if releases else None)
+    for i, tree in enumerate(trees[1:]):
+        render_site(env, out_dir, tree, trees, releases[i - 1] if i else None)
+    render(env, "releases.html.j2", out_dir, RELEASES_PAGE, snap=snapshot, root="..", active="releases",
+           versions=version_links(trees, trees[0], RELEASES_PAGE, RELEASES_PAGE), release_rows=release_rows(trees))
 
-    status_dir = os.path.join(out_dir, "status")
-    latest = releases[-1] if releases else None
-    render(env, "status.html.j2", os.path.join(status_dir, "index.html"), snap=snapshot, view=view(snapshot),
-           diff=collect.diff_snapshots(latest, snapshot), root="..")
-    for i, release in enumerate(releases):
-        prev = releases[i - 1] if i else None
-        render(env, "status.html.j2", os.path.join(status_dir, release["version"], "index.html"), snap=release,
-               view=view(release), diff=collect.diff_snapshots(prev, release), root="../..")
-    render(env, "releases.html.j2", os.path.join(status_dir, "releases.html"),
-           snap=snapshot, root="..", releases=list(reversed(releases)))
-    return len(pages)
+    broken = check_links(out_dir)
+    if broken:
+        raise SystemExit("ERROR: broken links in the generated site:\n  " + "\n  ".join(broken[:50]))
+    return len(trees[0]["pages"])
 
 
 def main():

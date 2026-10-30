@@ -1,0 +1,31 @@
+{% extends "base.html.j2" %}
+{% import "macros.html.j2" as ui %}
+{% block title %}Oncoming models — MAD Recipes{% endblock %}
+{% block body %}
+<main class="wrap">
+  {{ ui.page_header("Oncoming models", "Models planned for upcoming MAD releases. Only items cleared for public disclosure are listed" ~ ("; rows marked internal come from the internal roadmap." if snap.internal else "."), snap) }}
+  <section>
+    <div class="card">
+    {% if snap.roadmap %}
+      <table>
+        <thead><tr><th>Model</th><th>Framework</th><th>Target release</th><th>GPU products</th><th>Status</th><th>Notes</th></tr></thead>
+        <tbody>
+        {% for r in snap.roadmap %}
+          <tr>
+            <td>{{ r.model }}{% if r.internal | default(false) %} <span class="chip">internal</span>{% endif %}</td>
+            <td>{{ r.framework | default("–") }}</td>
+            <td>{{ r.target | default("–") }}</td>
+            <td>{{ (r.skus | default([])) | join(", ") or "–" }}</td>
+            <td>{{ ui.status_badge(r.status | default("planned")) }}</td>
+            <td class="muted">{{ r.note | default("") }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty">No public roadmap items for this release.</div>
+    {% endif %}
+    </div>
+  </section>
+</main>
+{% endblock %}
