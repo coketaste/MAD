@@ -42,6 +42,8 @@ concurrency:
 
 jobs:
   build:
+    # Scheduled rebuilds only make sense where the site is published.
+    if: github.event_name != 'schedule' || vars.DASHBOARD_PAGES == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
