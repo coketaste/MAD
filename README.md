@@ -39,7 +39,9 @@ Below are blueprints of supported models along with their documentation.
 How it is maintained:
 
 - Models, recipes, base images and ROCm versions are read from `scripts/*/models.json`, `scripts/*/get_models_json.py` and `docker/`, so adding a model adds its recipe page.
-- Everything else (roadmap, QA scope, CI matrix, ROCm versions that are not in an image tag) lives in [`dashboard/status.yaml`](dashboard/status.yaml). That file is public: only add roadmap items cleared for disclosure.
+- **Oncoming models** come from GitHub: open issues labeled `new-model` (use the "Model onboarding" issue form) are the plan, and the PRs that close them (`Closes #<issue>`) or carry the label themselves set the status. Merged work leaves the Roadmap and appears under Models. `python3 tools/dashboard/build.py --roadmap-report` lists model PRs missing the label and issues whose model already landed.
+- Everything else (QA scope, CI matrix, ROCm versions that are not in an image tag, roadmap items with no issue yet) lives in [`dashboard/status.yaml`](dashboard/status.yaml). That file is public: only add roadmap items cleared for disclosure.
+- Hosting: set the repository variable `DASHBOARD_PAGES=true` and Settings > Pages > Source to GitHub Actions. The site rebuilds on pushes to `develop` and every 3 hours. A fork can publish upstream's state by also setting `DASHBOARD_SOURCE_REPO=ROCm/MAD`.
 - To cut a release, run `python3 tools/dashboard/build.py --freeze v26.10` with `scripts/Primus` checked out and commit `dashboard/releases/v26.10.json`.
 - To preview locally: `pip install -r requirements.txt pyyaml jinja2`, then `python3 tools/dashboard/build.py --out _site` and open `_site/index.html`.
 

@@ -1,5 +1,5 @@
 {% extends "base.html.j2" %}
-{% import "macros.html.j2" as ui %}
+{% import "macros.html.j2" as ui with context %}
 {% block title %}CI coverage — MAD Recipes{% endblock %}
 {% block style %}
   .skugrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 0 0 16px; }

@@ -1,4 +1,4 @@
-{# Shared pieces for the section pages. Import with: {% import "macros.html.j2" as ui %} #}
+{# Shared pieces for the section pages. Import with: {% import "macros.html.j2" as ui with context %} #}
 
 {% macro mark(on, what) -%}
 {% if on %}<span class="yes" aria-hidden="true">✓</span><span class="sr">{{ what }}: yes</span>{% else %}<span class="no" aria-hidden="true">–</span><span class="sr">{{ what }}: no</span>{% endif %}
@@ -12,7 +12,7 @@
 {%- endmacro %}
 
 {% macro status_badge(value) -%}
-{% set kind = {"in-progress": "good", "planned": "warning", "blocked": "critical"}.get(value, "") %}
+{% set kind = {"in review": "good", "in progress": "good", "in-progress": "good", "planned": "warning", "blocked": "critical"}.get(value, "") %}
 <span class="status {{ kind }}">{{ value }}</span>
 {%- endmacro %}
 
@@ -20,7 +20,7 @@
 <header class="page">
   <h1>{{ title }}</h1>
   {% if lede %}<p class="lede">{{ lede }}</p>{% endif %}
-  <div class="meta">{% if snap.state == "live" %}{{ snap.release }} in progress · develop{% else %}Release {{ snap.version }}{% endif %}{% if snap.commit %} @ <a href="https://github.com/ROCm/MAD/tree/{{ snap.commit }}" class="mono">{{ snap.commit[:10] }}</a>{% endif %} · generated {{ snap.date }}</div>
+  <div class="meta">{% if snap.state == "live" %}{{ snap.release }} in progress · develop{% else %}Release {{ snap.version }}{% endif %}{% if snap.commit %} @ <a href="{{ gh }}/tree/{{ snap.commit }}" class="mono">{{ snap.commit[:10] }}</a>{% endif %} · generated {{ snap.date }}</div>
   {% if snap.internal %}
   <div class="banner" role="alert"><strong>Internal build.</strong> This site includes the internal roadmap from <code>dashboard/roadmap.internal.yaml</code>. Do not publish or forward outside AMD.</div>
   {% endif %}

@@ -84,7 +84,15 @@ rocm_overrides:
   docker/pyt_training_huggingface: ""         # rocm/pytorch-training:v25.5
   docker/pyt_ncf_training: ""                 # rocm/pytorch-training:v25.5
 
-# Oncoming model plan. PUBLIC-SAFE ITEMS ONLY (see header).
+# Oncoming models are read from GitHub: open issues labeled `label` (from the "Model
+# onboarding" issue form) are the plan, the PRs that close them -- or PRs carrying the
+# label on their own -- set the status. Merged work leaves the roadmap and shows up under
+# Models. Builds without a GitHub token (or with --offline) use only the list below.
+roadmap_source:
+  repo: ROCm/MAD
+  label: new-model
+
+# Extra roadmap items that have no issue yet. PUBLIC-SAFE ITEMS ONLY (see header).
 # status: planned | in-progress | blocked
 roadmap: []
 #  - model: Example-Model-70B

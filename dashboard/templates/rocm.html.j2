@@ -1,5 +1,5 @@
 {% extends "base.html.j2" %}
-{% import "macros.html.j2" as ui %}
+{% import "macros.html.j2" as ui with context %}
 {% block title %}ROCm support matrix — MAD Recipes{% endblock %}
 {% block body %}
 <main class="wrap">
@@ -20,7 +20,7 @@
             <td>{% if i.rocm == "unknown" %}<span class="status warning">unknown</span>{% else %}{{ i.rocm }}{% endif %}<div class="faint" style="font-size:12px">{{ i.rocm_source }}</div></td>
             {% for sku in snap.skus %}<td class="mark">{{ ui.mark(sku in i.skus, sku) }}</td>{% endfor %}
             <td class="num">{{ i.models }}</td>
-            <td>{% if i.path %}<a href="https://github.com/ROCm/MAD/blob/{{ snap.commit or 'develop' }}/{{ i.path }}" title="{{ i.path }}"><code style="white-space:nowrap;overflow-wrap:normal">{{ i.dockerfile }}</code></a>{% else %}<code>{{ i.dockerfile }}</code>{% endif %}</td>
+            <td>{% if i.path %}<a href="{{ gh }}/blob/{{ snap.commit or 'develop' }}/{{ i.path }}" title="{{ i.path }}"><code style="white-space:nowrap;overflow-wrap:normal">{{ i.dockerfile }}</code></a>{% else %}<code>{{ i.dockerfile }}</code>{% endif %}</td>
           </tr>
         {% endfor %}
         </tbody>

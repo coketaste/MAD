@@ -1,5 +1,5 @@
 {% extends "base.html.j2" %}
-{% import "macros.html.j2" as ui %}
+{% import "macros.html.j2" as ui with context %}
 {% set methods = [("madengine", "madengine CLI", "one command; madengine builds, runs and records the result"), ("docker", "Docker", "plain docker build + docker run, no madengine")] %}
 {% set mn = f.variants[0].rows[0] %}
 {% block title %}{{ f.name }} on AMD Instinct — {{ f.framework }} | MAD Recipes{% endblock %}
@@ -78,8 +78,8 @@
       <p class="faint" style="font-size:13px"><em>Base image <span class="mono">{{ mn.image }}</span> · ROCm {{ mn.rocm }}</em></p>
       <div class="links">
         {% if f.hf_repo %}<a href="https://huggingface.co/{{ f.hf_repo }}">View on Hugging Face ↗</a>{% endif %}
-        {% if f.readme %}<a href="https://github.com/ROCm/MAD/blob/{{ gh_ref }}/{{ f.readme }}">{{ f.framework }} guide ↗</a>{% endif %}
-        <a href="https://github.com/ROCm/MAD/tree/{{ gh_ref }}/scripts/{{ mn.registry }}">Model card and scripts ↗</a>
+        {% if f.readme %}<a href="{{ gh }}/blob/{{ gh_ref }}/{{ f.readme }}">{{ f.framework }} guide ↗</a>{% endif %}
+        <a href="{{ gh }}/tree/{{ gh_ref }}/scripts/{{ mn.registry }}">Model card and scripts ↗</a>
       </div>
       <div>
         <span class="chip solid">{{ f.framework }}</span>
@@ -178,7 +178,7 @@
         <h2>Overview</h2>
         <p>{% if row.hf_repo %}<a href="https://huggingface.co/{{ row.hf_repo }}">{{ row.hf_repo }}</a>{% else %}<strong>{{ row.model }}</strong>{% endif %}
           {{ "inference" if row.workload == "inference" else row.workload }} benchmark with {{ row.framework }}.
-          The image is built from <a href="https://github.com/ROCm/MAD/blob/{{ gh_ref }}/{{ row.run.dockerfile_path }}" class="mono">{{ row.run.dockerfile_path }}</a>
+          The image is built from <a href="{{ gh }}/blob/{{ gh_ref }}/{{ row.run.dockerfile_path }}" class="mono">{{ row.run.dockerfile_path }}</a>
           on <span class="mono">{{ row.image }}</span> (ROCm {{ row.rocm }}).
           {% if row.run.launcher == "slurm_multi" %}The SLURM launcher <span class="mono">{{ row.run.scripts }}</span> runs on the host{% if row.run.args %} with <code>{{ row.run.args }}</code>{% endif %} and starts one container per node.
           {% else %}<span class="mono">{{ row.run.scripts }}</span> is copied into the container and run{% if row.run.args %} with <code>{{ row.run.args }}</code>{% endif %}.{% endif %}</p>

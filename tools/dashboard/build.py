@@ -227,7 +227,9 @@ def render(env, template, out_dir, full_path, **context):
     out_path = os.path.join(out_dir, full_path)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w") as f:
-        f.write(env.get_template(template).render(site=up(full_path), **context))
+        # `gh`: the GitHub repo the snapshot describes (ROCm/MAD, or whatever --repo-root points at).
+        gh = "https://github.com/" + context["snap"].get("source_repo", recipes.DEFAULT_REPO)
+        f.write(env.get_template(template).render(site=up(full_path), gh=gh, **context))
 
 
 def write_csv(snapshot, path):
@@ -261,7 +263,8 @@ def render_site(env, out_dir, tree, trees, prev):
         page(template, rel, active, diff=collect.diff_snapshots(prev, snapshot), fw_slugs=tree["cat"]["fw_slugs"], **common)
     ref = snapshot["commit"] if frozen else None
     for family in tree["pages"]:
-        cards = [{sku: recipes.recipe(row, sku, ref) for sku, row in v["by_sku"].items()} for v in family["variants"]]
+        repo = snapshot.get("source_repo", recipes.DEFAULT_REPO)
+        cards = [{sku: recipes.recipe(row, sku, ref, repo) for sku, row in v["by_sku"].items()} for v in family["variants"]]
         page("recipe.html.j2", f"models/{family['page']}/index.html", "models", f=family, frameworks=tree["frameworks"],
              recipes=cards, isa_of=recipes.ISA_OF, default_sku=default_sku(family), gh_ref=ref or "develop")
 
@@ -330,12 +333,43 @@ def build_site(out_dir, snapshot, releases):
     return len(trees[0]["pages"])
 
 
+def roadmap_report(status, repo_root):
+    """Read-only maintainer report: what the Roadmap misses or should drop."""
+    import github_roadmap
+    source = status["roadmap_source"]
+    token = github_roadmap.github_token()
+    if not source.get("repo") or not token:
+        sys.exit("ERROR: --roadmap-report needs roadmap_source in status.yaml and a GitHub token")
+    raw = github_roadmap.fetch(source["repo"], source.get("label", "new-model"), token)
+    rows = collect.build_snapshot(status, repo_root=repo_root, github=False)["models"]
+    files = github_roadmap.Files(token)
+    oncoming, landed = github_roadmap.build_roadmap(raw, rows, status["frameworks"], source.get("label", "new-model"), files)
+    print(f"Roadmap from {source['repo']} (label '{source.get('label', 'new-model')}'): {len(oncoming)} oncoming")
+    for item in oncoming:
+        print(f"  #{item['number']:<5} {item['status']:<12} {item['model']}")
+    print(f"\nLanded but still open ({len(landed)}) -- close these, or relabel if more work remains:")
+    for item in landed:
+        print(f"  #{item['number']:<5} {item['model']}  {item['url']}")
+    unlabeled = github_roadmap.unlabeled_model_prs(raw, source.get("label", "new-model"))
+    print(f"\nOpen PRs that change model cards without the label or a labeled issue ({len(unlabeled)}):")
+    for pr in unlabeled:
+        new = github_roadmap.added_models(pr, files, known=[r["name"] for r in rows])
+        what = f"adds {len(new)} model card(s)" if new else "changes model cards"
+        print(f"  #{pr['number']:<5} {'draft ' if pr['isDraft'] else ''}{what}: {pr['title'][:70]}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", default="_site", help="output directory for the site (default: _site)")
     parser.add_argument("--freeze", metavar="VERSION", help="write dashboard/releases/VERSION.json instead of building")
     parser.add_argument("--internal", action="store_true", help="merge dashboard/roadmap.internal.yaml (never publish)")
     parser.add_argument("--strict", action="store_true", help="fail on snapshot warnings")
+    parser.add_argument("--repo-root", default=collect.REPO_ROOT,
+                        help="MAD checkout to describe (default: this one); dashboard/ data always comes from here")
+    parser.add_argument("--source-repo", help="GitHub owner/name of --repo-root for links and recipes (default: its origin)")
+    parser.add_argument("--offline", action="store_true", help="do not read the roadmap from GitHub")
+    parser.add_argument("--roadmap-report", action="store_true",
+                        help="print open model PRs missing the roadmap label and landed-but-open items, then exit")
     args = parser.parse_args()
 
     if args.freeze and args.internal:
@@ -344,6 +378,12 @@ def main():
         parser.error(f"--internal needs {collect.INTERNAL_ROADMAP_PATH}")
 
     status = collect.load_status(internal_roadmap_path=collect.INTERNAL_ROADMAP_PATH if args.internal else None)
+    repo_root = os.path.abspath(args.repo_root)
+    snapshot_args = {"repo_root": repo_root, "source_repo": args.source_repo, "github": not args.offline}
+
+    if args.roadmap_report:
+        roadmap_report(status, repo_root)
+        return
 
     if args.freeze:
         collect.version_key(args.freeze)
@@ -352,9 +392,9 @@ def main():
             sys.exit(f"ERROR: {path} already exists; frozen releases are immutable")
         if args.freeze != status["release"]:
             print(f"WARNING: freezing {args.freeze} but status.yaml release is {status['release']}", file=sys.stderr)
-        snapshot = collect.build_snapshot(status, version=args.freeze, state="frozen")
+        snapshot = collect.build_snapshot(status, version=args.freeze, state="frozen", **snapshot_args)
     else:
-        snapshot = collect.build_snapshot(status)
+        snapshot = collect.build_snapshot(status, **snapshot_args)
 
     if args.strict and snapshot["warnings"]:
         sys.exit(f"ERROR: --strict and {len(snapshot['warnings'])} warning(s); see above")

@@ -1,5 +1,5 @@
 {% extends "base.html.j2" %}
-{% import "macros.html.j2" as ui %}
+{% import "macros.html.j2" as ui with context %}
 {% block title %}Releases — MAD Recipes{% endblock %}
 {% block body %}
 <main class="wrap">
@@ -17,7 +17,7 @@
             <td class="num">{{ r.configs }}</td>
             <td class="num">{{ r.added if r.added is not none else "–" }}</td>
             <td class="num">{{ r.removed if r.removed is not none else "–" }}</td>
-            <td>{% if r.commit %}<a href="https://github.com/ROCm/MAD/tree/{{ r.commit }}" class="mono">{{ r.commit[:10] }}</a>{% endif %}</td>
+            <td>{% if r.commit %}<a href="{{ gh }}/tree/{{ r.commit }}" class="mono">{{ r.commit[:10] }}</a>{% endif %}</td>
           </tr>
         {% endfor %}
         </tbody>

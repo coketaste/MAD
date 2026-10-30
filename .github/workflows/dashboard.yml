@@ -1,8 +1,14 @@
 name: Status dashboard
 
-# Builds the MAD status dashboard (tools/dashboard/build.py) on every PR that touches the
-# model registry, and publishes it to GitHub Pages from develop on ROCm/MAD.
-# Pages must be enabled once by a repo admin: Settings > Pages > Source: GitHub Actions.
+# Builds the MAD Recipes site (tools/dashboard/build.py) and publishes it to GitHub Pages.
+#
+# Repository variables (Settings > Secrets and variables > Actions > Variables):
+#   DASHBOARD_PAGES=true            deploy from develop (also set Settings > Pages > Source: GitHub Actions)
+#   DASHBOARD_SOURCE_REPO=ROCm/MAD  optional: describe another repo's develop instead of this checkout,
+#                                   e.g. when the site is hosted from a fork
+#
+# The schedule keeps the site current with merges, issues and PRs that cannot trigger this
+# workflow (upstream changes never trigger a fork's workflows). Scheduled runs use the default branch.
 on:
   pull_request:
     paths:
@@ -23,6 +29,8 @@ on:
       - "tools/dashboard/**"
       - "requirements.txt"
       - ".github/workflows/dashboard.yml"
+  schedule:
+    - cron: "23 */3 * * *"
   workflow_dispatch:
 
 permissions:
@@ -41,6 +49,15 @@ jobs:
           # scripts/Primus feeds the Primus and JAX get_models_json.py registries.
           submodules: true
 
+      - name: Check out the MAD tree to describe
+        if: vars.DASHBOARD_SOURCE_REPO != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.DASHBOARD_SOURCE_REPO }}
+          ref: develop
+          path: source
+          submodules: true
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -52,7 +69,13 @@ jobs:
         run: python3 -m pytest -q tools/dashboard
 
       - name: Build site
-        run: python3 tools/dashboard/build.py --out _site
+        env:
+          # Read-only use: open issues and PRs for the Roadmap page.
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          python3 tools/dashboard/build.py --out _site
+          --repo-root "${{ vars.DASHBOARD_SOURCE_REPO != '' && 'source' || '.' }}"
+          --source-repo "${{ vars.DASHBOARD_SOURCE_REPO || github.repository }}"
 
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -60,7 +83,7 @@ jobs:
 
   deploy:
     needs: build
-    if: github.repository == 'ROCm/MAD' && github.ref == 'refs/heads/develop' && github.event_name != 'pull_request'
+    if: vars.DASHBOARD_PAGES == 'true' && github.ref == 'refs/heads/develop' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       pages: write

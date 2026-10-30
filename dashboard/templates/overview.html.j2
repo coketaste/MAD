@@ -1,5 +1,5 @@
 {% extends "base.html.j2" %}
-{% import "macros.html.j2" as ui %}
+{% import "macros.html.j2" as ui with context %}
 {% set live = snap.state == "live" %}
 {% block title %}MAD {{ snap.release if live else snap.version }} — Overview{% endblock %}
 {% block style %}
@@ -49,8 +49,8 @@
     <a class="tile" href="{{ root }}/roadmap/index.html">
       <div class="t-name"><span>Oncoming models</span><span class="faint">→</span></div>
       <div class="t-value">{{ snap.roadmap | length }}</div>
-      <div class="t-sub">public roadmap item{{ "s" if snap.roadmap | length != 1 }}</div>
-      <ul>{% for r in snap.roadmap[:3] %}<li>{{ r.model }}{% if r.target is defined %} · {{ r.target }}{% endif %}</li>{% endfor %}</ul>
+      <div class="t-sub">tracked in GitHub issues and pull requests</div>
+      <div class="gpu-row">{% for st in ["in review", "in progress", "planned", "blocked"] %}<div><b>{{ snap.roadmap | selectattr("status", "defined") | selectattr("status", "equalto", st) | list | length }}</b>{{ st }}</div>{% endfor %}</div>
     </a>
   </div>
 

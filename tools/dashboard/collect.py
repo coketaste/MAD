@@ -42,6 +42,7 @@ STATUS_KEYS = {
     "exclude": list,
     "rocm_overrides": dict,
     "roadmap": list,
+    "roadmap_source": dict,
     "qa": dict,
     "ci": list,
 }
@@ -381,7 +382,30 @@ def derived_qa(rows, images):
     return covered, not_covered
 
 
-def build_snapshot(status, version=None, state="live", repo_root=REPO_ROOT):
+def source_repo_of(repo_root):
+    """'owner/name' of the checkout's origin on GitHub ('ROCm/MAD' when it cannot be told)."""
+    try:
+        url = subprocess.check_output(["git", "-C", repo_root, "remote", "get-url", "origin"], text=True,
+                                      stderr=subprocess.DEVNULL).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return "ROCm/MAD"
+    m = re.search(r"github\.com[:/]([^/]+/[^/]+?)(?:\.git)?$", url)
+    return m.group(1) if m else "ROCm/MAD"
+
+
+def roadmap_items(status, rows, warnings, github=True):
+    """Hand-written roadmap items plus, when configured, the ones read from GitHub issues and PRs."""
+    manual = [dict(item, source=item.get("source", "status.yaml")) for item in status["roadmap"]]
+    if not github or not status["roadmap_source"].get("repo"):
+        return manual, []
+    import github_roadmap  # imports this module; only needed when a GitHub source is configured
+    oncoming, landed = github_roadmap.collect_roadmap(status["roadmap_source"], rows, status["frameworks"], warnings)
+    return manual + oncoming, landed
+
+
+def build_snapshot(status, version=None, state="live", repo_root=REPO_ROOT, source_repo=None, github=True):
+    """Everything the site shows. `repo_root` is the MAD tree to describe (models, docker/, Primus);
+    `status` (the curated data) can come from a different checkout."""
     warnings = []
     excluded = set(status["exclude"])
     models = [m for m in discover_models(repo_root) if m["name"] not in excluded]
@@ -393,7 +417,7 @@ def build_snapshot(status, version=None, state="live", repo_root=REPO_ROOT):
         if m["registry"] not in status["frameworks"]:
             warn(f"scripts/{m['registry']}: not in status.yaml frameworks; shown under its directory name", warnings)
             status["frameworks"][m["registry"]] = {"name": m["registry"], "workload": "other"}
-    if not primus_checked_out():
+    if not primus_checked_out(os.path.join(repo_root, "scripts", "Primus")):
         for d in sorted(glob.glob(os.path.join(repo_root, "scripts", "*", "get_models_json.py"))):
             reg_dir = os.path.basename(os.path.dirname(d))
             registries.setdefault(reg_dir, {"dir": reg_dir, "kind": "dynamic", "models": 0, "note": ""})
@@ -424,6 +448,7 @@ def build_snapshot(status, version=None, state="live", repo_root=REPO_ROOT):
     image_rows.sort(key=lambda i: first_use[i["dockerfile"]])
 
     covered, not_covered = derived_qa(rows, image_rows)
+    roadmap, landed = roadmap_items(status, rows, warnings, github)
     return {
         "schema": SCHEMA,
         "version": version or status["release"],
@@ -431,6 +456,7 @@ def build_snapshot(status, version=None, state="live", repo_root=REPO_ROOT):
         "state": state,
         "internal": status["internal"],
         "commit": git_commit(repo_root),
+        "source_repo": source_repo or source_repo_of(repo_root),
         "date": datetime.date.today().isoformat(),
         "skus": list(SKUS),
         "isa_skus": {isa: list(skus) for isa, skus in ISA_SKUS.items()},
@@ -438,7 +464,9 @@ def build_snapshot(status, version=None, state="live", repo_root=REPO_ROOT):
         "images": image_rows,
         "registries": sorted(registries.values(), key=lambda r: r["dir"]),
         "suite_tags": status["suite_tags"],
-        "roadmap": status["roadmap"],
+        "roadmap": roadmap,
+        "roadmap_landed": landed,
+        "roadmap_source": status["roadmap_source"],
         "qa": {
             "covered": covered + status["qa"]["covered"],
             "not_covered": not_covered + status["qa"]["not_covered"],

@@ -185,7 +185,7 @@
         {% for v in versions %}<option value="{{ v.href }}"{% if v.current %} selected{% endif %}>{{ v.label }}</option>{% endfor %}
       </select>
     </label>
-    <a href="https://github.com/ROCm/MAD">GitHub</a>
+    <a href="{{ gh }}">GitHub</a>
     <button type="button" id="theme" aria-label="Toggle light or dark theme">◐</button>
   </div>
 </div></div>
@@ -194,10 +194,10 @@
 {% endif %}
 {% block body %}{% endblock %}
 <footer><div class="wrap">
-  <a href="https://github.com/ROCm/MAD">GitHub</a>
+  <a href="{{ gh }}">GitHub</a>
   <a href="https://github.com/ROCm/madengine">madengine</a>
   <a href="{{ site }}/releases/index.html">Releases</a>
-  <span>Generated from {% if snap.commit %}<a href="https://github.com/ROCm/MAD/commit/{{ snap.commit }}" class="mono">{{ snap.commit[:10] }}</a>{% else %}a local tree{% endif %} on {{ snap.date }}. Curated data: <code>dashboard/status.yaml</code>.</span>
+  <span>Generated from {% if snap.commit %}<a href="{{ gh }}/commit/{{ snap.commit }}" class="mono">{{ snap.commit[:10] }}</a>{% else %}a local tree{% endif %} on {{ snap.date }}. Curated data: <code>dashboard/status.yaml</code>.</span>
 </div></footer>
 <script src="{{ root }}/search.js"></script>
 <script>
