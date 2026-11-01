@@ -1,0 +1,36 @@
+Workflow: mad-benchmark-sweep (run wf_09c1745e-612), status: completed
+args: {"tags":["pyt_fam_fastwam_eager","pyt_fam_fastwam_compile","pyt_fam_fastwam_geak","pyt_fam_fastwam_geak2","pyt_fam_dit4dit"],"execute":false}
+
+Cell commands:
+madengine run --tags 'pyt_fam/pyt_fam_fastwam_eager' --live-output -o perf_pyt_fam_pyt_fam_fastwam_eager.csv
+madengine run --tags 'pyt_fam/pyt_fam_fastwam_compile' --live-output -o perf_pyt_fam_pyt_fam_fastwam_compile.csv
+madengine run --tags 'pyt_fam/pyt_fam_fastwam_geak' --live-output -o perf_pyt_fam_pyt_fam_fastwam_geak.csv
+madengine run --tags 'pyt_fam/pyt_fam_fastwam_geak2' --live-output -o perf_pyt_fam_pyt_fam_fastwam_geak2.csv
+pyt_fam_dit4dit: (no command) status=error
+  notes: tag did not resolve via madengine discover: No models found corresponding to the given tag: pyt_fam_dit4dit
+
+Report:
+**Headline:** 5 cells total. 4 planned (not executed), 0 ran, 0 skipped, 1 errored. No performance data exists.
+
+| Cell | Via tag(s) | Command | Status | Performance | Metric |
+|---|---|---|---|---|---|
+| pyt_fam/pyt_fam_fastwam_eager | pyt_fam_fastwam_eager | `madengine run --tags 'pyt_fam/pyt_fam_fastwam_eager' --live-output -o perf_pyt_fam_pyt_fam_fastwam_eager.csv` | planned | n/a | n/a |
+| pyt_fam/pyt_fam_fastwam_compile | pyt_fam_fastwam_compile | `madengine run --tags 'pyt_fam/pyt_fam_fastwam_compile' --live-output -o perf_pyt_fam_pyt_fam_fastwam_compile.csv` | planned | n/a | n/a |
+| pyt_fam/pyt_fam_fastwam_geak | pyt_fam_fastwam_geak | `madengine run --tags 'pyt_fam/pyt_fam_fastwam_geak' --live-output -o perf_pyt_fam_pyt_fam_fastwam_geak.csv` | planned | n/a | n/a |
+| pyt_fam/pyt_fam_fastwam_geak2 | pyt_fam_fastwam_geak2 | `madengine run --tags 'pyt_fam/pyt_fam_fastwam_geak2' --live-output -o perf_pyt_fam_pyt_fam_fastwam_geak2.csv` | planned | n/a | n/a |
+| pyt_fam_dit4dit | (none resolved) | (none) | **error** | n/a | n/a |
+
+**Flagged: ERROR / unresolved**
+- `pyt_fam_dit4dit` is not a success. The tag did not resolve via `madengine discover` ("No models found corresponding to the given tag: pyt_fam_dit4dit"). No command was generated and nothing can run for it. Check the tag name against `scripts/pyt_fam/models.json`. Note that `scripts/pyt_fam/` is untracked in git, so the entry may be missing or named differently.
+
+**Planned cells:** these are not results. "Planned" means nothing was executed, so there are no numbers.
+- Some notes for the planned cells were checked only by inspection. For example, `scripts/pyt_fam/run.sh` was not inspected, and discover was not re-run for several cells.
+- For `fastwam_eager`, discover showed n_gpus=1, a 10800s timeout, and args `--mode arm --arm eager`. It clones `https://github.com/AMD-AGI/faster-action-models`, so the host needs network access.
+- To run on a GPU host, start each cell with `bash .claude/skills/mad-common/mad-run.sh start <run-id> -- <command>`. Then repeat `wait <run-id>` until it reports succeeded or failed.
+- `MAD_SECRETS_HFTOKEN` may be needed if weights come from HuggingFace. This is unconfirmed.
+
+**Fastest/slowest:** not applicable, because no cell ran and there are no performance values or metrics.
+
+**Combining results:** each cell writes its own `perf_<cell>.csv`, for example `perf_pyt_fam_pyt_fam_fastwam_eager.csv`. Once cells are executed, these can be concatenated into one combined report. Keep the header only once, and do not compare rows that have different `metric` values. The errored cell has no CSV, because it never ran.
+
+(Workflow: 6 agents, 0 errors. HTML entities in the notification were unescaped.)

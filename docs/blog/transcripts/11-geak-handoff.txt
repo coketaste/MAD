@@ -1,0 +1,28 @@
+GEAK handoff (invocation only; this post does NOT run it)
+
+GEAK is pinned at fa86fd1.
+Entry point: kernel_workflow.js
+Not the entry point: e2e_workflow targets SGLang and vLLM, so it is the wrong
+entry point for FastWAM.
+
+kernel_path points at the shipped tree the image already contains:
+  /opt/faster-action-models/geak/task
+This comes from AMD-AGI/faster-action-models, which vendors that task against
+the pinned GEAK.
+
+Workflow tool call (args is an object; budget is deliberately left unset so
+nothing is spent):
+
+Workflow({
+  scriptPath: "<GEAK checkout at fa86fd1>/kernel_workflow.js",
+  args: {
+    kernel_path: "/opt/faster-action-models/geak/task",
+    workflow_dir: "<GEAK checkout at fa86fd1>",
+    task: "Measure the shipped FastWAM tree at kernel_path. Do not edit it."
+    // budget: intentionally unset
+  }
+})
+
+This post does not run that workflow. kernel_workflow was not run and no
+budget was spent. MAD measured the tree the repository already ships under
+src/fastwam-geak.

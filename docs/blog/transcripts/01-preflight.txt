@@ -1,0 +1,2 @@
+$ bash .claude/skills/mad-common/preflight.sh
+[pre-flight] OK: madengine=/home/ysha/.local/bin/madengine, cwd=/home/ysha/MAD

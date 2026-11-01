@@ -1,0 +1,22 @@
+Eager smoke
+$ bash .claude/skills/mad-common/mad-run.sh start fam-smoke-eager -- madengine run --tags pyt_fam_fastwam_eager_smoke --live-output -o perf_fam_smoke_eager.csv --additional-context '{"docker_mounts":{"/myworkspace/fam_cache":"/var/tmp/fam_cache"},"docker_env_vars":{"FAM_CACHE":"/myworkspace/fam_cache"}}'
+MAD_RUN_STATUS=succeeded
+smoke eager: 40/40 episodes
+performance: 1.0000 success_rate
+Test Duration: 465.0854957103729 seconds
+File: perf_fam_smoke_eager.csv
+
+GEAK at 2 steps smoke
+$ bash .claude/skills/mad-common/mad-run.sh start fam-smoke-geak2 -- madengine run --tags pyt_fam_fastwam_geak2_smoke --live-output -o perf_fam_smoke_geak2.csv --additional-context '{"docker_mounts":{"/myworkspace/fam_cache":"/var/tmp/fam_cache"},"docker_env_vars":{"FAM_CACHE":"/myworkspace/fam_cache"}}'
+MAD_RUN_STATUS=succeeded
+smoke geak@2: 40/40 episodes
+performance: 1.0000 success_rate
+Test Duration: 392.10458612442017 seconds
+File: perf_fam_smoke_geak2.csv
+
+CAE latency, 10 denoising steps, released amd/CAE-FastWAM weights
+$ bash .claude/skills/mad-common/mad-run.sh start fam-cae-latency -- madengine run --tags pyt_fam_cae_fastwam_latency --live-output -o perf_fam_cae.csv --additional-context '{"docker_mounts":{"/myworkspace/fam_cache":"/var/tmp/fam_cache"},"docker_env_vars":{"FAM_CACHE":"/myworkspace/fam_cache"}}'
+MAD_RUN_STATUS=succeeded
+performance: 13.5792 ms
+Test Duration: 96.68645238876343 seconds
+File: perf_fam_cae.csv

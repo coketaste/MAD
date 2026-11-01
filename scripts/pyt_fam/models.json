@@ -1,0 +1,99 @@
+[
+    {
+        "name": "pyt_fam_fastwam_latency",
+        "dockerfile": "../../docker/pyt_fam",
+        "scripts": "run.sh",
+        "url": "",
+        "n_gpus": "1",
+        "owner": "mad.support@amd.com",
+        "training_precision": "",
+        "timeout": 28800,
+        "multiple_results": "perf_fam_latency.csv",
+        "tags": ["pyt", "pyt_fam", "inference", "fam", "fastwam", "latency"],
+        "args": "--mode interleaved --rounds 3 --csv perf_fam_latency.csv"
+    },
+    {
+        "name": "pyt_fam_fastwam_eager",
+        "dockerfile": "../../docker/pyt_fam",
+        "scripts": "run.sh",
+        "url": "",
+        "n_gpus": "1",
+        "owner": "mad.support@amd.com",
+        "training_precision": "",
+        "timeout": 10800,
+        "tags": ["pyt", "pyt_fam", "inference", "fam", "fastwam", "latency"],
+        "args": "--mode arm --arm eager"
+    },
+    {
+        "name": "pyt_fam_fastwam_compile",
+        "dockerfile": "../../docker/pyt_fam",
+        "scripts": "run.sh",
+        "url": "",
+        "n_gpus": "1",
+        "owner": "mad.support@amd.com",
+        "training_precision": "",
+        "timeout": 10800,
+        "tags": ["pyt", "pyt_fam", "inference", "fam", "fastwam", "latency"],
+        "args": "--mode arm --arm compile"
+    },
+    {
+        "name": "pyt_fam_fastwam_geak",
+        "dockerfile": "../../docker/pyt_fam",
+        "scripts": "run.sh",
+        "url": "",
+        "n_gpus": "1",
+        "owner": "mad.support@amd.com",
+        "training_precision": "",
+        "timeout": 10800,
+        "tags": ["pyt", "pyt_fam", "inference", "fam", "fastwam", "latency"],
+        "args": "--mode arm --arm geak"
+    },
+    {
+        "name": "pyt_fam_fastwam_geak2",
+        "dockerfile": "../../docker/pyt_fam",
+        "scripts": "run.sh",
+        "url": "",
+        "n_gpus": "1",
+        "owner": "mad.support@amd.com",
+        "training_precision": "",
+        "timeout": 10800,
+        "tags": ["pyt", "pyt_fam", "inference", "fam", "fastwam", "latency"],
+        "args": "--mode arm --arm geak@2"
+    },
+    {
+        "name": "pyt_fam_fastwam_eager_smoke",
+        "dockerfile": "../../docker/pyt_fam",
+        "scripts": "run.sh",
+        "url": "",
+        "n_gpus": "1",
+        "owner": "mad.support@amd.com",
+        "training_precision": "",
+        "timeout": 14400,
+        "tags": ["pyt", "pyt_fam", "inference", "fam", "fastwam", "accuracy"],
+        "args": "--mode smoke --arm eager"
+    },
+    {
+        "name": "pyt_fam_fastwam_geak2_smoke",
+        "dockerfile": "../../docker/pyt_fam",
+        "scripts": "run.sh",
+        "url": "",
+        "n_gpus": "1",
+        "owner": "mad.support@amd.com",
+        "training_precision": "",
+        "timeout": 14400,
+        "tags": ["pyt", "pyt_fam", "inference", "fam", "fastwam", "accuracy"],
+        "args": "--mode smoke --arm geak@2"
+    },
+    {
+        "name": "pyt_fam_cae_fastwam_latency",
+        "dockerfile": "../../docker/pyt_fam",
+        "scripts": "run.sh",
+        "url": "",
+        "n_gpus": "1",
+        "owner": "mad.support@amd.com",
+        "training_precision": "",
+        "timeout": 10800,
+        "tags": ["pyt", "pyt_fam", "inference", "fam", "fastwam", "cae", "latency"],
+        "args": "--mode cae --cae-steps 10"
+    }
+]

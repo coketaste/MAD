@@ -1,0 +1,9 @@
+$ python3 tools/validation/model_config_validator.py --model pyt_fam_fastwam_latency
+
+Model Validation Report for: pyt_fam_fastwam_latency
+============================================================
+
+✅ All validation checks passed!
+
+
+Validated 1 model(s) from 20 models.json file(s)

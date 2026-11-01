@@ -1,0 +1,34 @@
+Workflow: mad-benchmark-sweep (run wf_d3bbf0ad-6e0), status: completed
+args: {"tags":["pyt_fam_fastwam_eager","pyt_fam_fastwam_compile","pyt_fam_fastwam_geak","pyt_fam_fastwam_geak2"],"execute":false}
+
+Cell commands:
+madengine run --tags 'pyt_fam/pyt_fam_fastwam_eager' --live-output -o perf_pyt_fam_pyt_fam_fastwam_eager.csv
+madengine run --tags 'pyt_fam/pyt_fam_fastwam_compile' --live-output -o perf_pyt_fam_pyt_fam_fastwam_compile.csv
+madengine run --tags 'pyt_fam/pyt_fam_fastwam_geak' --live-output -o perf_pyt_fam_pyt_fam_fastwam_geak.csv
+madengine run --tags 'pyt_fam/pyt_fam_fastwam_geak2' --live-output -o perf_pyt_fam_pyt_fam_fastwam_geak2.csv
+
+Report:
+**Headline:** 4 cells planned, 0 ran, 0 skipped, 0 errored. No cell was executed, so there are no performance numbers.
+
+| Cell | Via tag(s) | Command | Status | Performance | Metric |
+|---|---|---|---|---|---|
+| pyt_fam/pyt_fam_fastwam_eager | pyt_fam_fastwam_eager | `madengine run --tags 'pyt_fam/pyt_fam_fastwam_eager' --live-output -o perf_pyt_fam_pyt_fam_fastwam_eager.csv` | planned | n/a | n/a |
+| pyt_fam/pyt_fam_fastwam_compile | pyt_fam_fastwam_compile | `madengine run --tags 'pyt_fam/pyt_fam_fastwam_compile' --live-output -o perf_pyt_fam_pyt_fam_fastwam_compile.csv` | planned | n/a | n/a |
+| pyt_fam/pyt_fam_fastwam_geak | pyt_fam_fastwam_geak | `madengine run --tags 'pyt_fam/pyt_fam_fastwam_geak' --live-output -o perf_pyt_fam_pyt_fam_fastwam_geak.csv` | planned | n/a | n/a |
+| pyt_fam/pyt_fam_fastwam_geak2 | pyt_fam_fastwam_geak2 | `madengine run --tags 'pyt_fam/pyt_fam_fastwam_geak2' --live-output -o perf_pyt_fam_pyt_fam_fastwam_geak2.csv` | planned | n/a | n/a |
+
+**Flags**
+- No cell has status "error". Planned is not success: nothing has been run or verified.
+- Tag resolution differs by cell:
+  - The eager, compile and geak2 notes say `madengine discover` resolved each to exactly one model.
+  - The geak note says the command was not run through discover or any other tool, so its tag resolution is unconfirmed. Only the tag format looked valid.
+- `scripts/pyt_fam/` and `docker/pyt_fam.ubuntu.amd.Dockerfile` are untracked in git (per the geak and geak2 notes and the git status). They must be present on the GPU host.
+- Each model clones https://github.com/AMD-AGI/faster-action-models in the container, so network access is needed. `MAD_SECRETS_HFTOKEN` may be needed for gated weights; no cell confirmed a requirement.
+
+**Fastest and slowest:** not applicable, since no cell ran. These are latency models, so lower would be better once they run. Compare only cells with the same metric unit.
+
+**Next steps and output files**
+- To execute, start each command through `bash .claude/skills/mad-common/mad-run.sh start <run-id> -- <command>`. Then repeat `wait <run-id>` until the status is succeeded or failed.
+- Each cell writes its own file, `perf_pyt_fam_<cell>.csv` (names as in the commands above). Once they exist, concatenate them for a combined report. Keep the header row from the first file only, then run `madengine report to-html --csv-file-path <combined.csv>`.
+
+(Workflow: 6 agents, 0 errors. Transcript contains the report and cell commands; per-cell agent notes are in the workflow journal. HTML entities in the notification were unescaped.)
