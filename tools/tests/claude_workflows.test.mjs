@@ -22,6 +22,7 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const HELPERS = {
   'mad-benchmark-sweep.js': ['tokenize', 'parseCli', 'pyLiteralToJson', 'normalizeContext'],
   'mad-tune-search.js': ['tokenize', 'parseCli', 'pyLiteralToJson', 'normalizeContext', 'stats', 'gate'],
+  'mad-optimize.js': ['tokenize', 'parseCli', 'pyLiteralToJson', 'normalizeContext', 'stats', 'gate'],
 }
 
 function load(name) {
@@ -292,4 +293,116 @@ test('tune-search: a Python-dict context reaches the clean baseline commands', a
   const baseline = calls.find(c => c.opts.label === 'baseline').prompt
   assert.match(baseline, /--additional-context '\{"docker_env_vars":\{"HF":"x"\}\}'/)
   assert.doesNotMatch(baseline, /"tools"/)
+})
+
+// ── mad-optimize ──────────────────────────────────────────────────────────
+
+const OPT = 'mad-optimize.js'
+
+function optAgent(over = {}) {
+  return (prompt, opts) => {
+    const label = opts.label || ''
+    if (label === 'resolve') return {
+      preflightOk: true,
+      resolvedModels: ['pyt_fam/pyt_fam_fastwam_geak'],
+      model: 'pyt_fam/pyt_fam_fastwam_geak',
+      dockerfile: '../../docker/pyt_fam',
+      url: '',
+      args: '--mode arm --arm geak',
+      ...(over.resolve || {}),
+    }
+    if (label === 'setup') return over.setup || { status: 'ok', kernelWorkflowPresent: true, sha: 'fa86fd1e9bec56dadf27d6575a0c8f8ab7875c57' }
+    if (label === 'source') return over.source || {
+      status: 'ok', hasSource: true, suffixes: ['.py'],
+      hostPath: '/tmp/fastwam-geak', containerPath: '/opt/faster-action-models/src/fastwam-geak',
+    }
+    if (label === 'baseline') return { status: 'ran', samples: [24.56, 24.70], metric: 'ms' }
+    if (label === 'profile') return over.profile || { status: 'ran', topKernel: 'triton_mm 65.9%', performance: 25.2, metric: 'ms' }
+    if (label === 'geak') return over.geak || { status: 'ok', expDir: '/home/me/GEAK/kernel_workflow/exp/team_1', geomean: 0.8 }
+    if (label === 'patched') return over.patched || { status: 'ran', samples: [20.1, 20.2], metric: 'ms' }
+    if (label === 'smoke') return { status: 'ran', performance: 1, metric: 'success_rate', baselineRate: null }
+    return 'report'
+  }
+}
+
+test('optimize: the latency gate matches tune-search', async () => {
+  const { stats, gate } = await helpersOf(OPT)
+  const narrow = stats([99.15, 100.85])
+  const better = stats([97.65, 97.75])
+  assert.ok(Math.abs(narrow.spreadPct - 1.7) < 1e-9)
+  assert.equal(gate(narrow, better, 'ms', 'ms', false).pass, true, '2.3% improvement beats a 1.7% spread')
+  const wide = stats([98.85, 101.15])
+  const mild = stats([98.25, 98.35])
+  assert.ok(Math.abs(wide.spreadPct - 2.3) < 1e-9)
+  assert.equal(gate(wide, mild, 'ms', 'ms', false).pass, false, '1.7% improvement loses to a 2.3% spread')
+})
+
+test('optimize: plan mode prints the GEAK handoff and does not clone or run', async () => {
+  const { result, calls, logs } = await run(OPT, '--tag pyt_fam_fastwam_geak --smoke-tag pyt_fam_fastwam_geak2_smoke', optAgent())
+  assert.equal(result.status, 'planned')
+  assert.equal(result.execute, false)
+  const printed = logs.join('\n') + JSON.stringify(result)
+  assert.match(printed, /kernel_workflow\.js/)
+  assert.match(printed, /workflow_dir/)
+  assert.match(printed, /"budget":1/)
+  assert.match(printed, /git clone https:\/\/github.com\/AMD-AGI\/GEAK\.git "\$HOME\/GEAK"/)
+  assert.equal(result.containerPath, '/opt/faster-action-models/src/fastwam-geak')
+  assert.match(result.hostPath, /\$HOME\/\.mad-optimize\/pyt_fam_pyt_fam_fastwam_geak\/src/)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].opts.label, 'resolve')
+  for (const c of calls) {
+    assert.doesNotMatch(c.prompt, /git clone/)
+    assert.doesNotMatch(c.prompt, /madengine run/)
+  }
+})
+
+test('optimize: a missing kernel_workflow.js stops before profile and GEAK', async () => {
+  const { result, calls } = await run(OPT, '--tag pyt_fam_fastwam_geak --execute', optAgent({
+    setup: { status: 'error', kernelWorkflowPresent: false, reason: 'kernel_workflow.js missing after clone' },
+  }))
+  assert.equal(result.status, 'error')
+  assert.match(result.reason, /kernel_workflow\.js missing/)
+  assert.equal(calls.some(c => c.opts.label === 'profile'), false)
+  assert.equal(calls.some(c => c.opts.label === 'geak'), false)
+})
+
+test('optimize: no editable source stops before GEAK', async () => {
+  const { result, calls } = await run(OPT, '--tag pyt_fam_fastwam_geak --execute', optAgent({
+    source: { status: 'error', hasSource: false, reason: 'this image has no kernel source; pass --kernel-path' },
+  }))
+  assert.equal(result.status, 'error')
+  assert.match(result.reason, /no kernel source/)
+  assert.equal(calls.some(c => c.opts.label === 'geak'), false)
+  assert.equal(calls.some(c => c.opts.label === 'baseline'), false)
+})
+
+test('optimize: an empty GEAK exp dir skips the patched score', async () => {
+  const { result, calls } = await run(OPT, '--tag pyt_fam_fastwam_geak --execute', optAgent({
+    geak: { status: 'error', expDir: '', geomean: 0.5, reason: 'GEAK_RUN_STATUS=failed final_patch=missing' },
+  }))
+  assert.equal(result.status, 'error')
+  assert.match(result.reason, /GEAK failed: GEAK_RUN_STATUS=failed/, 'the GEAK agent reason is passed through')
+  assert.equal(calls.some(c => c.opts.label === 'patched'), false)
+  assert.equal(calls.some(c => c.opts.label === 'baseline'), true)
+})
+
+test('optimize: GEAK is launched through geak-run.sh, not the Workflow tool', async () => {
+  const { calls } = await run(OPT, '--tag pyt_fam_fastwam_geak --execute', optAgent({
+    profile: { status: 'ran', topKernel: 'triton_mm - 64.8%', kernelName: 'triton_mm', inSourceTree: false, performance: 25, metric: 'ms' },
+    geak: { status: 'error', expDir: null, reason: 'x' },
+  }))
+  const g = calls.find(c => c.opts.label === 'geak')
+  assert.ok(g, 'the geak agent ran')
+  assert.match(g.prompt, /geak-run\.sh start opt_geak/)
+  assert.match(g.prompt, /must not try to use one/)
+  assert.doesNotMatch(g.prompt, /Invoke the Workflow tool/)
+  assert.match(g.prompt, /"eval_dir"/)
+  assert.match(g.prompt, /Optimize the hottest GPU kernel \\"triton_mm\\"/)
+  assert.match(g.prompt, /not defined in that tree/)
+})
+
+test('optimize: plan mode gives GEAK a fixed eval_dir', async () => {
+  const { result } = await run(OPT, '--tag pyt_fam_fastwam_geak', optAgent())
+  assert.equal(result.status, 'planned')
+  assert.match(result.geakInvocation.args.eval_dir, /geak_eval$/)
 })

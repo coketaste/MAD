@@ -50,8 +50,10 @@ that you are at the repo root. It never installs anything.
 
 ### Claude Code, Cursor and Codex
 
-- **Workflows are Claude Code only.** `mad-benchmark-sweep` and
-  `mad-tune-search` (`.claude/workflows/`) need Claude Code's workflow runtime.
+- **Workflows are Claude Code only.** `mad-benchmark-sweep`,
+  `mad-tune-search`, and `mad-optimize` (`.claude/workflows/`) need Claude
+  Code's workflow runtime. `mad-optimize` profiles one model and runs GEAK
+  `kernel_workflow`; see `docs/mad-optimize.md`.
   In Cursor and Codex, use `mad-benchmark` with several tags
   (`/mad-benchmark bert,pyt_vllm_qwen3-8b` runs them in one `madengine run`)
   and `mad-tune`.

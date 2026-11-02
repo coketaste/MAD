@@ -95,5 +95,17 @@
         "timeout": 10800,
         "tags": ["pyt", "pyt_fam", "inference", "fam", "fastwam", "cae", "latency"],
         "args": "--mode cae --cae-steps 10"
+    },
+    {
+        "name": "pyt_fam_fastwam_rollout",
+        "dockerfile": "../../docker/pyt_fam",
+        "scripts": "run.sh",
+        "url": "",
+        "n_gpus": "1",
+        "owner": "mad.support@amd.com",
+        "training_precision": "",
+        "timeout": 14400,
+        "tags": ["pyt", "pyt_fam", "inference", "fam", "fastwam", "rollout"],
+        "args": "--mode frames"
     }
 ]

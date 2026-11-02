@@ -141,7 +141,7 @@ def run_interleaved(rounds: int, csv_path: Path) -> None:
     for label in INTERLEAVED:
         values = samples[label]
         median = statistics.median(values)
-        spread = (max(values) - min(values)) / min(values) * 100 if len(values) > 1 else 0.0
+        spread = (max(values) - min(values)) / median * 100 if len(values) > 1 else 0.0
         _, steps, _ = ARM_SPECS[label]
         print(f"{label:<14}{steps:>6}{median:>12.3f}{spread:>8.2f}%")
         rows.append((label, median))
@@ -220,6 +220,48 @@ def pooled_success(out: Path) -> tuple[int, int]:
     return successes, episodes
 
 
+def compose_rollouts(out: Path) -> None:
+    from PIL import Image
+
+    figures = out.parent
+    for slug in ("spatial", "object", "goal", "long"):
+        rows = [Image.open(out / arm / f"{slug}.png").convert("RGB")
+                for arm in ("eager", "geak2")]
+        width = max(row.width for row in rows)
+        gap = 8
+        height = sum(row.height for row in rows) + gap
+        canvas = Image.new("RGB", (width, height), "white")
+        y = 0
+        for row in rows:
+            canvas.paste(row, (0, y))
+            y += row.height + gap
+        canvas.save(figures / f"rollout-{slug}.png")
+        print(f"wrote {figures / f'rollout-{slug}.png'}")
+
+
+def run_frames() -> None:
+    script = Path(__file__).with_name("capture_rollouts.py")
+    out = Path(os.environ.get("ROLLOUT_DIR", "/myworkspace/docs/blog/figures/rollouts"))
+    successes = episodes = 0
+    for label in ("eager", "geak@2"):
+        _src, steps, extra = ARM_SPECS[label]
+        env = instinct_env(_src, extra)
+        proc = subprocess.run(
+            [sys.executable, str(script), "--arm", label, "--steps", str(steps), "--out", str(out)],
+            env=env, timeout=14400,
+        )
+        if proc.returncode != 0:
+            sys.exit(f"rollout {label} failed (rc={proc.returncode})")
+        summary = json.loads((out / ("geak2" if label == "geak@2" else label) / "summary.json").read_text())
+        successes += int(summary["successes"])
+        episodes += int(summary["episodes"])
+    if episodes == 0:
+        sys.exit("rollout produced no episodes")
+    compose_rollouts(out)
+    print(f"rollout frames: {successes}/{episodes} episodes under {out}")
+    print(f"performance: {successes / episodes:.4f} success_rate")
+
+
 def run_smoke(label: str) -> None:
     if label not in ("eager", "geak@2"):
         sys.exit(f"smoke arm must be eager or geak@2, got {label}")
@@ -253,7 +295,7 @@ def run_smoke(label: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", required=True,
-                        choices=("interleaved", "arm", "smoke", "cae"))
+                        choices=("interleaved", "arm", "smoke", "cae", "frames"))
     parser.add_argument("--arm", default="")
     parser.add_argument("--rounds", type=int, default=3)
     parser.add_argument("--csv", default="perf_fam_latency.csv")
@@ -265,6 +307,8 @@ def main() -> None:
         run_one(args.arm)
     elif args.mode == "smoke":
         run_smoke(args.arm)
+    elif args.mode == "frames":
+        run_frames()
     else:
         run_cae(args.cae_steps)
 

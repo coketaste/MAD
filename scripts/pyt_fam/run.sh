@@ -28,6 +28,7 @@
 #   --mode interleaved   four latency arms, one session, writes perf_fam_latency.csv
 #   --mode arm --arm X   one latency arm; prints performance: <ms> ms
 #   --mode smoke --arm X one-trial LIBERO screen on the gfx950 simulator
+#   --mode frames        four LIBERO episodes, eager and GEAK at 2 steps, saved as frames
 #   --mode cae           CAE-FastWAM latency at 10 steps
 set -euo pipefail
 

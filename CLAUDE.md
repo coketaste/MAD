@@ -14,7 +14,7 @@ Claude Code does.
 - **Pre-flight is injected.** The GPU skills run
   `bash .claude/skills/mad-common/preflight.sh` in a `` ```! `` block before
   the skill body loads; a failing pre-flight aborts the skill with its message.
-- **Workflows** (`.claude/workflows/`) handle larger fan-out jobs. Both **plan
+- **Workflows** (`.claude/workflows/`) handle larger fan-out jobs. They **plan
   by default**: they resolve the model(s) and print every command without
   touching GPUs. Pass `--execute` to run.
   - `mad-benchmark-sweep --tags a,b [--ngpus 1,8] [-c '<ctx>'] [--execute]` — a
@@ -27,7 +27,11 @@ Claude Code does.
     After each executed candidate the workflow checks `git status` against a
     snapshot and stops if an edit leaked. `--expect` adds `/primus-projection`
     numbers for a Primus training model; it stays off otherwise.
-  - The tests in `tools/tests/` run both against a mock agent:
+  - `mad-optimize --tag <one-model> [--budget 1] [--repeats 2] [--smoke-tag <tag>] [--execute]`
+    — profiles one model, runs GEAK `kernel_workflow` as its own phase, and
+    keeps the patched tree only when the same latency gate passes. See
+    `docs/mad-optimize.md`.
+  - The tests in `tools/tests/` run all three against a mock agent:
     `node --test tools/tests/*.test.mjs`.
 - **Hook.** `.claude/settings.json` registers a PostToolUse hook
   (`.claude/hooks/validate-models-json.sh`) that validates any
