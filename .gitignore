@@ -70,6 +70,12 @@ venv.bak/
 *.csv
 *.json
 !models.json
+# Result files the hands-on blog cites. The ignore above still covers
+# run output at the repo root.
+!docs/blog/results/
+!docs/blog/results/**
+!docs/blog/figures/numbers.json
+!docs/blog/figures/rollouts/**/*.json
 *.log
 *.out
 *.html

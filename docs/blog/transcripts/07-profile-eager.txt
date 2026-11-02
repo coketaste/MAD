@@ -21,4 +21,4 @@ other        3.18%
 CONV_fwd     1.78%
 
 gpu_timeline.csv: computation 32.57%, idle 67.40%, total 1999.9 ms.
-No nn.Module sheet. This does not measure the source post's 87% module share.
+No nn.Module sheet. This capture does not attribute time to the action-denoising module.

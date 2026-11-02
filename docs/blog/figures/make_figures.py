@@ -212,15 +212,6 @@ def main() -> None:
         [("FastWAM", ["language, cameras, state", "video DiT", "action DiT", "32 by 7 chunk"])],
         OUT / "dual-dit.svg",
     )
-    flow_rows(
-        "CAE action compression",
-        "Layout of the CAE-FastWAM action path.",
-        [
-            ("tokens", ["32 by 7 raw actions", "8 by 16 latent"]),
-            ("hidden", ["32 by 1024", "8 by 32"]),
-        ],
-        OUT / "action-vae.svg",
-    )
     base = [v for v in numbers["tune_base"] if v is not None]
     top = [v for v in numbers["tune_top"] if v is not None]
     if len(base) == 2 and len(top) == 2:
