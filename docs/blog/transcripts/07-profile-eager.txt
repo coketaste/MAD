@@ -1,31 +1,24 @@
-Operator profile of pyt_fam_fastwam_eager. One depth. The profiled performance line is not a clean benchmark score.
+$ bash .claude/skills/mad-common/mad-run.sh start rerun-profile -- \
+    madengine run -m /tmp/fam-manifests/pyt_fam_fastwam_eager.json \
+    --live-output -o perf_rerun_profile_eager.csv \
+    --additional-context-file /tmp/fam-ctx/profile.json
 
-Attempt 1 hung. Command:
-bash .claude/skills/mad-common/mad-run.sh start fam-profile-eager -- madengine run --tags pyt_fam/pyt_fam_fastwam_eager --live-output -o perf_fam_profile_eager.csv --additional-context '{"tools":[{"name":"torch_profiler_dynolog","env_vars":{"TORCH_PROFILE_ITERATIONS":"0","TORCH_PROFILE_DURATION_MS":"4000","TORCH_PROFILE_WARMUP_S":"30","TORCH_PROFILE_RETRY_INTERVAL_S":"5","TORCH_PROFILE_MAX_ATTEMPTS":"12"}},{"name":"tracelens","env_vars":{"TRACELENS_MODE":"pytorch"}}],"docker_mounts":{"/myworkspace/fam_cache":"/var/tmp/fam_cache"},"docker_env_vars":{"FAM_CACHE":"/myworkspace/fam_cache"}}'
+profile.json: torch_profiler_dynolog (iterations 0, duration 2000 ms, warmup 25 s, stacks off)
+plus tracelens, TRACELENS_MODE=pytorch. Fam cache mounted. No rocm_trace_lite in this command.
 
-dynolog accepted a 4000 ms trace on episode_perf.py with PROFILE_WITH_STACK=true and PROFILE_WITH_MODULES=true. After 18 minutes the Kineto file was still a 0-byte .tmp, the GPU was idle, and the process was sleeping. The run was stopped:
-MAD_RUN_STATUS=failed exit=stopped dir=.mad-runs/fam-profile-eager
+MAD_RUN_STATUS=succeeded
+performance: 248.8302 ms
+That number is under the profiler. It is not a score.
 
-Attempt 2, stacks off so the trace could finish. Command:
-bash .claude/skills/mad-common/mad-run.sh start fam-profile-eager-2 -- madengine run --tags pyt_fam/pyt_fam_fastwam_eager --live-output -o perf_fam_profile_eager.csv --additional-context '{"tools":[{"name":"torch_profiler_dynolog","env_vars":{"TORCH_PROFILE_ITERATIONS":"0","TORCH_PROFILE_DURATION_MS":"2000","TORCH_PROFILE_WARMUP_S":"25","TORCH_PROFILE_RETRY_INTERVAL_S":"5","TORCH_PROFILE_MAX_ATTEMPTS":"10","TORCH_PROFILE_WITH_STACKS":"0"}},{"name":"tracelens","env_vars":{"TRACELENS_MODE":"pytorch"}}],"docker_mounts":{"/myworkspace/fam_cache":"/var/tmp/fam_cache"},"docker_env_vars":{"FAM_CACHE":"/myworkspace/fam_cache"}}'
+tracelens_summary.json status SUCCESS, trace torch_profiler_output/libkineto_trace_1240.json
+ops_summary_by_category.csv (kernel time, 2 s window):
+elementwise 49.91%
+GEMM        24.86%
+reduce       8.57%
+SDPA_fwd     8.17%
+NORM_fwd     3.53%
+other        3.18%
+CONV_fwd     1.78%
 
-MAD_RUN_STATUS=succeeded exit=0
-performance: 292.2085 ms
-
-TraceLens: tracelens_output/tracelens_summary.json status SUCCESS, mode pytorch, trace torch_profiler_output/libkineto_trace_1558.json (524 MB).
-
-gpu_timeline.csv (window about 1996.8 ms):
-computation_time 712.826 ms (35.70%)
-idle_time 1282.874 ms (64.25%)
-exposed_memcpy_time 1.071 ms
-
-ops_summary_by_category.csv (kernel time):
-elementwise 51.15%
-GEMM 24.55%
-reduce 8.11%
-SDPA_fwd 7.66%
-NORM_fwd 3.57%
-other 3.00%
-CONV_fwd 1.95%
-
-The Kineto trace categories are cpu_op, kernel, cuda_runtime, gpu_memcpy, gpu_memset. There are no nn.Module events, so this capture does not measure the blog's action-denoising module share.
+gpu_timeline.csv: computation 32.57%, idle 67.40%, total 1999.9 ms.
+No nn.Module sheet. This does not measure the source post's 87% module share.

@@ -1,67 +1,10 @@
-Workflow: .claude/workflows/mad-benchmark-sweep.js
-session: 98e9d3d6-ea57-448e-ad12-439b7b4148b9
-workflow id: wf_457899fa-d31
-args:
-{
-  "tags": [
-    "pyt_fam_fastwam_eager",
-    "pyt_fam_fastwam_compile",
-    "pyt_fam_fastwam_geak",
-    "pyt_fam_fastwam_geak2"
-  ],
-  "execute": true,
-  "additionalContext": "{\"docker_mounts\":{\"/myworkspace/fam_cache\":\"/var/tmp/fam_cache\"},\"docker_env_vars\":{\"FAM_CACHE\":\"/myworkspace/fam_cache\"}}"
-}
+Four cells, one at a time, on the image already on the host.
+Each command is `madengine run -m <manifest> --live-output -o <csv> --additional-context-file /tmp/fam-ctx/cache.json`
+started with mad-run.sh. The manifest came from `madengine build --tags <tag> --use-image <local tag>`.
 
-The print session stopped after 10 minutes (CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS) while the geak@2 cell was still in mad-run.sh wait. That cell's container finished on its own. Journal results below are what the workflow recorded; CSV rows are the files on disk.
+rerun-eager    MAD_RUN_STATUS=succeeded   221.4562 ms   perf_rerun_eager.csv    test 45.0 s
+rerun-compile  MAD_RUN_STATUS=succeeded    90.6402 ms   perf_rerun_compile.csv  test 280.9 s
+rerun-geak     MAD_RUN_STATUS=succeeded    24.6736 ms   perf_rerun_geak.csv     test 82.6 s
+rerun-geak2    MAD_RUN_STATUS=succeeded     9.8859 ms   perf_rerun_geak2.csv    test 77.3 s
 
-RESOLVE
-[pre-flight] OK: madengine=/home/ysha/.local/bin/madengine, cwd=/home/ysha/MAD
-[
-  {
-    "tag": "pyt_fam_fastwam_eager",
-    "models": [
-      "pyt_fam/pyt_fam_fastwam_eager"
-    ]
-  },
-  {
-    "tag": "pyt_fam_fastwam_compile",
-    "models": [
-      "pyt_fam/pyt_fam_fastwam_compile"
-    ]
-  },
-  {
-    "tag": "pyt_fam_fastwam_geak",
-    "models": [
-      "pyt_fam/pyt_fam_fastwam_geak"
-    ]
-  },
-  {
-    "tag": "pyt_fam_fastwam_geak2",
-    "models": [
-      "pyt_fam/pyt_fam_fastwam_geak2"
-    ]
-  }
-]
-
-CELL pyt_fam/pyt_fam_fastwam_eager status=error performance=None metric=None
-command: madengine run --tags 'pyt_fam/pyt_fam_fastwam_eager' --live-output -o perf_pyt_fam_pyt_fam_fastwam_eager.csv --additional-context '{"docker_mounts":{"/myworkspace/fam_cache":"/var/tmp/fam_cache"},"docker_env_vars":{"FAM_CACHE":"/myworkspace/fam_cache"}}'
-notes: Not run. The permission system denied my first command automatically because it chained several commands with shell operators (a GPU check, an ls of the cache directory, and the mad-run.sh start). No GPU check was done and no run was started. To run it, execute from /home/ysha/MAD: bash .claude/skills/mad-common/mad-run.sh start sweep_pyt_fam_pyt_fam_fastwam_eager_0 -- <command above>, then repeat the wait subcommand until the status is succeeded or failed. Results would land in perf_pyt_fam_pyt_fam_fastwam_eager.csv.
-
-CELL pyt_fam/pyt_fam_fastwam_compile status=ran performance=91.2376 metric=ms
-command: madengine run --tags 'pyt_fam/pyt_fam_fastwam_compile' --live-output -o perf_pyt_fam_pyt_fam_fastwam_compile.csv --additional-context '{"docker_mounts":{"/myworkspace/fam_cache":"/var/tmp/fam_cache"},"docker_env_vars":{"FAM_CACHE":"/myworkspace/fam_cache"}}'
-notes: Run id sweep_pyt_fam_pyt_fam_fastwam_compile_1 succeeded (exit 0, about 6.3 min) on an 8x MI350X gfx950 host. Results are in perf_pyt_fam_pyt_fam_fastwam_compile.csv, and the log is in .mad-runs/sweep_pyt_fam_pyt_fam_fastwam_compile_1/log. No profiler was used, so the number is a clean benchmark. The metric is in ms, so lower is better.
-
-CELL pyt_fam/pyt_fam_fastwam_geak status=ran performance=24.813 metric=ms
-command: madengine run --tags 'pyt_fam/pyt_fam_fastwam_geak' --live-output -o perf_pyt_fam_pyt_fam_fastwam_geak.csv --additional-context '{"docker_mounts":{"/myworkspace/fam_cache":"/var/tmp/fam_cache"},"docker_env_vars":{"FAM_CACHE":"/myworkspace/fam_cache"}}'
-notes: Run id sweep_pyt_fam_pyt_fam_fastwam_geak_2 on 8x MI350X; succeeded, exit 0, about 1.3 min. Results are in perf_pyt_fam_pyt_fam_fastwam_geak.csv and logs in .mad-runs/sweep_pyt_fam_pyt_fam_fastwam_geak_2/. The metric is a latency in ms, so lower is better.
-
-EAGER RERUN (same command, mad-run.sh, after the cell agent was denied)
-madengine run --tags pyt_fam/pyt_fam_fastwam_eager --live-output -o perf_pyt_fam_pyt_fam_fastwam_eager.csv --additional-context \{\"docker_mounts\":\{\"/myworkspace/fam_cache\":\"/var/tmp/fam_cache\"\}\,\"docker_env_vars\":\{\"FAM_CACHE\":\"/myworkspace/fam_cache\"\}\} 
-
-MAD_RUN_STATUS=succeeded
-model,n_gpus,nnodes,gpus_per_node,training_precision,pipeline,args,tags,docker_file,base_docker,docker_sha,docker_image,git_commit,machine_name,deployment_type,launcher,gpu_architecture,performance,metric,relative_change,status,build_duration,test_duration,dataname,data_provider_type,data_size,data_download_duration,build_number,additional_docker_run_options,serving_mode,platform
-pyt_fam/pyt_fam_fastwam_eager,237.2072,ms,SUCCESS
-pyt_fam/pyt_fam_fastwam_compile,91.2376,ms,SUCCESS
-pyt_fam/pyt_fam_fastwam_geak,24.8130,ms,SUCCESS
-pyt_fam/pyt_fam_fastwam_geak2,9.8860,ms,SUCCESS
+Order matches the one-session table. These are separate sessions.

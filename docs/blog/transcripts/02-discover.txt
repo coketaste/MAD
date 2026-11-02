@@ -1,10 +1,16 @@
-$ madengine discover --tags pyt_fam --json
+$ madengine discover --tags pyt_fam
+╭────────────────────────────── Model Discovery ───────────────────────────────╮
+│ 🔍 Discovering Models                                                        │
+│ Tags: ['pyt_fam']                                                            │
+│ Full JSON: False                                                             │
+╰──────────────────────────────────────────────────────────────────────────────╯
+📋 Selected Models (8 models):
 [
     {
         "name": "pyt_fam/pyt_fam_fastwam_latency",
         "dockerfile": "docker/pyt_fam",
         "scripts": "scripts/pyt_fam/run.sh",
-        "url": "https://github.com/AMD-AGI/faster-action-models",
+        "url": "",
         "n_gpus": "1",
         "owner": "mad.support@amd.com",
         "training_precision": "",
@@ -25,7 +31,7 @@ $ madengine discover --tags pyt_fam --json
         "name": "pyt_fam/pyt_fam_fastwam_eager",
         "dockerfile": "docker/pyt_fam",
         "scripts": "scripts/pyt_fam/run.sh",
-        "url": "https://github.com/AMD-AGI/faster-action-models",
+        "url": "",
         "n_gpus": "1",
         "owner": "mad.support@amd.com",
         "training_precision": "",
@@ -45,7 +51,7 @@ $ madengine discover --tags pyt_fam --json
         "name": "pyt_fam/pyt_fam_fastwam_compile",
         "dockerfile": "docker/pyt_fam",
         "scripts": "scripts/pyt_fam/run.sh",
-        "url": "https://github.com/AMD-AGI/faster-action-models",
+        "url": "",
         "n_gpus": "1",
         "owner": "mad.support@amd.com",
         "training_precision": "",
@@ -65,7 +71,7 @@ $ madengine discover --tags pyt_fam --json
         "name": "pyt_fam/pyt_fam_fastwam_geak",
         "dockerfile": "docker/pyt_fam",
         "scripts": "scripts/pyt_fam/run.sh",
-        "url": "https://github.com/AMD-AGI/faster-action-models",
+        "url": "",
         "n_gpus": "1",
         "owner": "mad.support@amd.com",
         "training_precision": "",
@@ -85,7 +91,7 @@ $ madengine discover --tags pyt_fam --json
         "name": "pyt_fam/pyt_fam_fastwam_geak2",
         "dockerfile": "docker/pyt_fam",
         "scripts": "scripts/pyt_fam/run.sh",
-        "url": "https://github.com/AMD-AGI/faster-action-models",
+        "url": "",
         "n_gpus": "1",
         "owner": "mad.support@amd.com",
         "training_precision": "",
@@ -105,7 +111,7 @@ $ madengine discover --tags pyt_fam --json
         "name": "pyt_fam/pyt_fam_fastwam_eager_smoke",
         "dockerfile": "docker/pyt_fam",
         "scripts": "scripts/pyt_fam/run.sh",
-        "url": "https://github.com/AMD-AGI/faster-action-models",
+        "url": "",
         "n_gpus": "1",
         "owner": "mad.support@amd.com",
         "training_precision": "",
@@ -125,7 +131,7 @@ $ madengine discover --tags pyt_fam --json
         "name": "pyt_fam/pyt_fam_fastwam_geak2_smoke",
         "dockerfile": "docker/pyt_fam",
         "scripts": "scripts/pyt_fam/run.sh",
-        "url": "https://github.com/AMD-AGI/faster-action-models",
+        "url": "",
         "n_gpus": "1",
         "owner": "mad.support@amd.com",
         "training_precision": "",
@@ -145,7 +151,7 @@ $ madengine discover --tags pyt_fam --json
         "name": "pyt_fam/pyt_fam_cae_fastwam_latency",
         "dockerfile": "docker/pyt_fam",
         "scripts": "scripts/pyt_fam/run.sh",
-        "url": "https://github.com/AMD-AGI/faster-action-models",
+        "url": "",
         "n_gpus": "1",
         "owner": "mad.support@amd.com",
         "training_precision": "",
@@ -163,3 +169,4 @@ $ madengine discover --tags pyt_fam --json
         "_fs_rel_path": "pyt_fam"
     }
 ]
+✅ Model discovery completed successfully

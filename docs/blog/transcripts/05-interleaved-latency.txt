@@ -1,46 +1,41 @@
-$ bash .claude/skills/mad-common/mad-run.sh start fam-latency-3 -- madengine run --tags pyt_fam_fastwam_latency --live-output -o perf_fam_interleaved.csv
-# command recorded in .mad-runs/fam-latency-3/cmd:
-madengine run --tags pyt_fam_fastwam_latency --live-output -o perf_fam_interleaved.csv 
+Rerun on 2026-11-02. The first attempt, fam-latency-4, failed before the model ran:
+docker pull of rocm/pytorch:rocm7.14_ubuntu24.04_py3.12_pytorch_release_2.11.0
+returned 401 (Docker Hub token expired). The image was already on the host, so
+this run reused it.
 
-# MAD_RUN_STATUS=succeeded exit=0
-# device line from the run log: AMD Instinct MI350X, torch 2.11.0+rocm7.14.0
-Perf: 235.9920 ms (episode_10step)
-  round 1 eager          235.992 ms
-Perf: 87.5392 ms (episode_10step)
-  round 1 compile        87.539 ms
-Perf: 24.4309 ms (episode_10step)
-  round 1 geak           24.431 ms
-Perf: 10.0153 ms (episode_2step)
-  round 1 geak@2         10.015 ms
-Perf: 225.7824 ms (episode_10step)
-  round 2 eager          225.782 ms
-Perf: 86.7025 ms (episode_10step)
-  round 2 compile        86.703 ms
-Perf: 24.6126 ms (episode_10step)
-  round 2 geak           24.613 ms
-Perf: 9.9784 ms (episode_2step)
-  round 2 geak@2         9.978 ms
-Perf: 222.1675 ms (episode_10step)
-  round 3 eager          222.167 ms
-Perf: 94.5830 ms (episode_10step)
-  round 3 compile        94.583 ms
-Perf: 24.5619 ms (episode_10step)
-  round 3 geak           24.562 ms
-Perf: 10.0407 ms (episode_2step)
-  round 3 geak@2         10.041 ms
-arm            steps   median_ms   spread
-eager             10     225.782    6.22%
-compile           10      87.539    9.09%
-geak              10      24.562    0.74%
-geak@2             2      10.015    0.62%
-wrote /myworkspace/run_directory/perf_fam_latency.csv
-Test Duration: 1154.4742619991302 seconds
-Status: SUCCESS (performance metrics found, no errors)
-pyt_fam/pyt_fam_fastwam_latency performance is perf_fam_latency.csv 
+$ madengine build --tags pyt_fam_fastwam_latency \
+    --use-image ci-pyt_fam_pyt_fam_fastwam_latency_pyt_fam.ubuntu.amd:latest \
+    --manifest-output /tmp/fam-manifests/pyt_fam_fastwam_latency.json
+$ bash .claude/skills/mad-common/mad-run.sh start fam-latency-5 -- \
+    madengine run -m /tmp/fam-manifests/pyt_fam_fastwam_latency.json \
+    --live-output -o perf_rerun_interleaved.csv \
+    --additional-context-file /tmp/fam-ctx/cache.json
 
-# host copy of the multiple_results CSV (perf_fam_latency.csv):
-model,performance,metric
-eager,225.7824,ms
-compile,87.5392,ms
-geak,24.5619,ms
-geak@2,10.0153,ms
+cache.json mounts host /var/tmp/fam_cache at container /myworkspace/fam_cache
+and sets FAM_CACHE=/myworkspace/fam_cache.
+
+MAD_RUN_STATUS=succeeded exit=0 dir=.mad-runs/fam-latency-5
+Device: AMD Instinct MI350X, torch 2.11.0+rocm7.14.0
+
+round 1 eager     216.579 ms
+round 1 compile    89.335 ms
+round 1 geak       24.845 ms
+round 1 geak@2      9.931 ms
+round 2 eager     223.929 ms
+round 2 compile    88.973 ms
+round 2 geak       24.899 ms
+round 2 geak@2      9.921 ms
+round 3 eager     229.188 ms
+round 3 compile    87.373 ms
+round 3 geak       24.946 ms
+round 3 geak@2      9.959 ms
+
+perf_fam_latency.csv (median of the three rounds):
+eager,223.9293,ms
+compile,88.9732,ms
+geak,24.8986,ms
+geak@2,9.9310,ms
+
+Post-derived spread (max-min)/median: eager 5.63%, compile 2.21%, geak 0.41%, geak@2 0.38%.
+The historical driver's printed summary used min as its denominator (5.82% /
+2.25% for eager / compile). Its reporting code now uses the median formula.

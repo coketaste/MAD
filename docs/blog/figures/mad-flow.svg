@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="640" viewBox="0 0 760 640" role="img" aria-label="Flow from mad-add-model through the sweep to mad-report and the mad-optimize plan">
+<title>Flow from mad-add-model through the sweep to mad-report and the mad-optimize plan</title>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="#c45911"/></marker></defs>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<style>text{font-family:sans-serif;fill:#1a1a1a} .muted{fill:#555}</style>
+<rect x="240" y="28" width="280" height="52" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5"/>
+<text x="380" y="60" font-size="15" text-anchor="middle">mad-add-model</text>
+<rect x="240" y="116" width="280" height="52" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5"/>
+<text x="380" y="148" font-size="15" text-anchor="middle">discover and validate</text>
+<rect x="240" y="204" width="280" height="52" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5"/>
+<text x="380" y="236" font-size="15" text-anchor="middle">sweep plan mode</text>
+<rect x="36" y="312" width="280" height="52" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5"/>
+<text x="176" y="344" font-size="15" text-anchor="middle">one-session latency</text>
+<rect x="36" y="400" width="280" height="52" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5"/>
+<text x="176" y="423" font-size="15" text-anchor="middle">operator profile</text>
+<text x="176" y="442" font-size="13" text-anchor="middle" class="muted">eager arm</text>
+<rect x="36" y="488" width="280" height="52" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5"/>
+<text x="176" y="511" font-size="15" text-anchor="middle">mad-tune-search</text>
+<text x="176" y="530" font-size="13" text-anchor="middle" class="muted">one lever</text>
+<rect x="36" y="576" width="280" height="52" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5"/>
+<text x="176" y="599" font-size="15" text-anchor="middle">mad-optimize</text>
+<text x="176" y="618" font-size="13" text-anchor="middle" class="muted">plan only</text>
+<rect x="424" y="312" width="280" height="52" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5"/>
+<text x="564" y="344" font-size="15" text-anchor="middle">four sweep cells</text>
+<rect x="424" y="400" width="280" height="52" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5"/>
+<text x="564" y="432" font-size="15" text-anchor="middle">two accuracy smokes</text>
+<rect x="424" y="488" width="280" height="52" rx="8" fill="#f3f8f3" stroke="#2d6a4f" stroke-width="1.5"/>
+<text x="564" y="511" font-size="15" text-anchor="middle">mad-report</text>
+<text x="564" y="530" font-size="13" text-anchor="middle" class="muted">read-only</text>
+<line x1="380" y1="80" x2="380" y2="116" stroke="#c45911" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="380" y1="168" x2="380" y2="204" stroke="#c45911" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="176" y1="364" x2="176" y2="400" stroke="#c45911" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="176" y1="452" x2="176" y2="488" stroke="#c45911" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="176" y1="540" x2="176" y2="576" stroke="#c45911" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="564" y1="364" x2="564" y2="400" stroke="#c45911" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="564" y1="452" x2="564" y2="488" stroke="#c45911" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="380" y1="256" x2="380" y2="284" stroke="#c45911" stroke-width="2"/>
+<line x1="176" y1="284" x2="564" y2="284" stroke="#c45911" stroke-width="2"/>
+<line x1="176" y1="284" x2="176" y2="312" stroke="#c45911" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="564" y1="284" x2="564" y2="312" stroke="#c45911" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="316" y1="528" x2="424" y2="528" stroke="#c45911" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="316" y1="338" x2="370" y2="338" stroke="#c45911" stroke-width="2" stroke-dasharray="5 4"/>
+<line x1="370" y1="338" x2="370" y2="500" stroke="#c45911" stroke-width="2" stroke-dasharray="5 4"/>
+<line x1="370" y1="500" x2="424" y2="500" stroke="#c45911" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+</svg>

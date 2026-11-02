@@ -1,10 +1,8 @@
-mad-report on the two smoke CSVs. Unit is success_rate. Higher is better. These rows are not compared with any ms row.
+Computed from the two smoke CSVs after the rerun. Not a mad-report agent session.
+Metric success_rate. Higher is better.
+Did not compare either rate with a millisecond.
 
-Headline: both smokes passed, 40/40 episodes, rate 1.0000. Delta between the two models is 0.
+eager smoke     1.0000 success_rate   40/40
+GEAK at 2 steps 1.0000 success_rate   40/40
 
-| model | performance | metric | status | gpu_architecture |
-|---|---:|---|---|---|
-| pyt_fam/pyt_fam_fastwam_eager_smoke | 1.0000 | success_rate | SUCCESS | gfx950 |
-| pyt_fam/pyt_fam_fastwam_geak2_smoke | 1.0000 | success_rate | SUCCESS | gfx950 |
-
-Each file is one row. Eager test_duration 465.09 s. geak@2 test_duration 392.10 s. The logs count 40 task lines, each 1/1, one trial per task across libero_spatial, libero_object, libero_goal, and libero_10.
+These are one trial per task on MI350X. They are not the source post's 11-run means.

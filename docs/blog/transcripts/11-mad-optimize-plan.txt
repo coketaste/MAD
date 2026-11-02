@@ -1,0 +1,24 @@
+The workflow is running in the background (run ID `wf_d09edae8-215`). I'll quote the requested fields when it finishes.
+
+Plan-mode result from the mad-optimize workflow. I did not execute, clone, run madengine, or spend the budget.
+
+- **status:** `planned` (`execute: false`)
+- **model:** `pyt_fam/pyt_fam_fastwam_geak`
+- **clone command:** `git clone https://github.com/AMD-AGI/GEAK.git "$HOME/GEAK" && git -C "$HOME/GEAK" checkout fa86fd1e9bec56dadf27d6575a0c8f8ab7875c57`
+- **containerPath:** `/opt/faster-action-models/src/fastwam-geak`
+- **hostPath:** `$HOME/.mad-optimize/pyt_fam_pyt_fam_fastwam_geak/src`
+
+**GEAK invocation**
+- scriptPath: `$HOME/GEAK/kernel_workflow/kernel_workflow.js`
+- workflow_dir: `$HOME/GEAK/kernel_workflow`
+- budget: `1`
+- gpu_ids: `"0"`
+- apply_to_original: `"true"`
+
+The invocation args also include these:
+- kernel_path: `$HOME/.mad-optimize/pyt_fam_pyt_fam_fastwam_geak/src`
+- task: `(top kernel from the dispatch profile)`
+
+Note: the session text also named an eval_dir. mad-optimize.js does not return that field. It is not part of the handoff.
+
+The workflow also planned a `rocm_trace_lite` profile run and two baseline and two patched latency runs. Those match `repeats: 2`.

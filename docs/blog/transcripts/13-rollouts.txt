@@ -1,0 +1,22 @@
+Frame capture on 2026-11-02, run fam-rollout-2. One GPU, AMD Instinct MI350X, gfx950.
+Model pyt_fam_fastwam_rollout, local image, fam cache mounted. No profiler.
+
+An earlier start, fam-rollout, exited before saving frames (NameError in the new script).
+perf_rerun_rollout.csv therefore has a FAILURE row and then this SUCCESS row.
+The images come from this second run.
+
+rollout eager libero_spatial t1: 1/1 pick up the black bowl next to the ramekin and place it on the plate
+rollout eager libero_object t0: 1/1 pick up the alphabet soup and place it in the basket
+rollout eager libero_goal t0: 1/1 open the middle drawer of the cabinet
+rollout eager libero_10 t1: 1/1 put both the cream cheese box and the butter in the basket
+rollout geak@2 libero_spatial t1: 1/1 pick up the black bowl next to the ramekin and place it on the plate
+rollout geak@2 libero_object t0: 1/1 pick up the alphabet soup and place it in the basket
+rollout geak@2 libero_goal t0: 1/1 open the middle drawer of the cabinet
+rollout geak@2 libero_10 t1: 1/1 put both the cream cheese box and the butter in the basket
+
+rollout frames: 8/8 episodes under /myworkspace/docs/blog/figures/rollouts
+performance: 1.0000 success_rate
+
+That rate is these eight episodes. It is not the 40-task smoke.
+Each strip is five agent-camera frames from start to finish.
+Eager is the top row. GEAK at 2 steps is the bottom row.

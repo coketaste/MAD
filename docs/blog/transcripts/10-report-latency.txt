@@ -1,14 +1,11 @@
-mad-report on perf_fam_latency.csv
+Computed from perf_fam_latency.csv after fam-latency-5. Not a mad-report agent session.
+Metric ms. Lower is better.
+Did not open a success_rate file.
 
-Source: perf_fam_latency.csv, the multiple_results file from the one-session interleaved run. Unit is ms. Lower is better. This file has no status column; the madengine row that ingested it is SUCCESS in perf_fam_interleaved.csv.
+eager     223.9293 ms
+compile    88.9732 ms   2.52x vs eager
+geak       24.8986 ms   8.99x vs eager, 3.57x vs compile
+geak@2      9.9310 ms  22.55x vs eager
 
-Headline: four latency arms, one session. geak@2 is the fastest at 10.0153 ms. eager is the slowest at 225.7824 ms. Nothing in this file is a success_rate, and these numbers are not compared with the smoke CSV.
-
-| model | performance | metric |
-|---|---:|---|
-| eager | 225.7824 | ms |
-| compile | 87.5392 | ms |
-| geak | 24.5619 | ms |
-| geak@2 | 10.0153 | ms |
-
-Ratios against the eager row: compile 2.58×, geak 9.19×, geak@2 22.54×. geak is 3.56× past compile.
+Headline: the order is eager, compile, GEAK, GEAK at 2 steps.
+The profiled eager number 248.8302 ms is not in this table.

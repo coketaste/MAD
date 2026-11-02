@@ -1,26 +1,40 @@
-Tune measurements for pyt_fam/pyt_fam_fastwam_geak. Plan mode is in 08-tune-search-plan.txt. That propose step named FASTWAM_KVSLAB=1. fam_driver.py forces FASTWAM_KVSLAB=0 for the geak arm, so that lever would not change the process. The lever measured here is PYTORCH_TUNABLEOP_ENABLED=1, two clean repeats against two clean baseline repeats. Latency is ms, lower is better. The dispatch run is evidence, not a clean score.
+Dispatch, then a clean remeasure of pyt_fam_fastwam_geak. Fam cache mounted.
 
-Dispatch (rocm_trace_lite), one run:
-bash .claude/skills/mad-common/mad-run.sh start fam-tune-dispatch -- madengine run --tags pyt_fam/pyt_fam_fastwam_geak --live-output -o perf_tune_dispatch.csv --additional-context '{"tools":[{"name":"rocm_trace_lite"}],"docker_mounts":{"/myworkspace/fam_cache":"/var/tmp/fam_cache"},"docker_env_vars":{"FAM_CACHE":"/myworkspace/fam_cache"}}'
-MAD_RUN_STATUS=succeeded
-performance: 25.2028 ms
-rocm_trace_lite_output/trace_summary.txt: 293028 GPU ops. Top kernel triton_mm, 44275 calls, 65.9% of kernel time. GPU 0 utilization in that file is 5.41% (4064.5 ms busy, 75125.1 ms wall), because the trace covers process startup as well as the timed window.
+Dispatch, rocm_trace_lite only (rerun-dispatch):
+  performance: 26.8858 ms   (profiled, not a score)
+  rocm_trace_lite_output/trace_summary.txt:
+    triton_mm 66.0% of kernel time
+    GPU 0 utilization 5.39% over 75.7 s of wall, because the trace includes startup
+  The plan's 67% came from a trace already on disk. This file is the new capture.
 
-Clean baseline, two repeats. Same cache mount, no tools, no TunableOp:
-fam-tune-base-1  performance: 25.0754 ms  perf_tune_baseline_r1.csv
-fam-tune-base-2  performance: 25.5096 ms  perf_tune_baseline_r2.csv
-median 25.2925 ms
-spread (max-min)/median = 1.72%
+Discarded. These four reused the dispatch manifest, so rocm_trace_lite was still selected.
+They are not scores:
+  perf_rerun_tune_base_r1.csv
+  perf_rerun_tune_base_r2.csv
+  perf_rerun_tune_top_r1.csv
+  perf_rerun_tune_top_r2.csv
 
-TunableOp candidate, PYTORCH_TUNABLEOP_ENABLED=1 merged into docker_env_vars:
-fam-tune-tunable-1  performance: 24.5579 ms  perf_tune_tunableop_r1.csv
-fam-tune-tunable-2  performance: 24.8667 ms  perf_tune_tunableop_r2.csv
-median 24.7123 ms
-spread 1.25%
+Clean manifest: madengine build --use-image, written to
+/tmp/fam-manifests/pyt_fam_fastwam_geak_clean.json. That file has no tools key.
+None of the runs below selected rocm_trace_lite.
 
-Gate from mad-tune-search.js: improvement must beat max(baseline spread, candidate spread, 1%).
-delta = (24.7123 - 25.2925) / 25.2925 = -2.29% (lower is better, so +2.29% improvement)
-noise = max(1.72%, 1.25%, 1%) = 1.72%
-2.29% > 1.72%, so the four-run numeric gate passes.
+Baseline, cache mount only:
+  rerun-clean-base-1  24.9009 ms
+  rerun-clean-base-2  24.9296 ms
+  median 24.9153 ms, spread 0.12%
 
-Not kept. Unmodified geak on this host the same day already spans 24.431 ms to 25.510 ms (interleaved rounds, the sweep cell, and these two baseline repeats). The TunableOp samples, 24.558 and 24.867, sit inside that range. No tracked file was edited.
+Plan's first step. PYTORCH_TUNABLEOP_ENABLED=1, PYTORCH_TUNABLEOP_TUNING=1,
+PYTORCH_TUNABLEOP_FILENAME=/myworkspace/fam_cache/tunableop_results.csv:
+  rerun-clean-tune-search  25.2935 ms
+  /var/tmp/fam_cache/tunableop_results.csv was not created
+  the log has no TunableOp activity
+  TUNING=0 score runs were not taken, because there is no results file to reuse
+
+ENABLED=1 with tuning unset, same clean manifest:
+  rerun-clean-top-1  FAILURE. InductorError: CantSplit: 640 not divisible by 392.
+                     no performance line
+  rerun-clean-top-2  24.9987 ms, slower than both baseline samples
+
+The gate needs two candidate samples. The candidate side does not have them.
+The lever is not kept. No tracked file was edited.
+The speedup in perf_fam_latency.csv is the tree the image already contained.

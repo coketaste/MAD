@@ -1,63 +1,15 @@
-Workflow invocation
-  Workflow({
-    scriptPath: ".claude/workflows/mad-tune-search.js",
-    args: {
-      "tag": "pyt_fam_fastwam_geak",
-      "target": "latency",
-      "depth": "dispatch",
-      "repeats": 2,
-      "candidates": 1,
-      "execute": false
-    }
-  })
-Run ID: wf_f7085b92-00f (plan mode, nothing executed, no GPU job started)
+The workflow is running in the background (run ID `wf_e2cf34b5-82f`). I'll report the proposed lever, whether dispatch ran, and that execute is false once it returns.
 
-=== Workflow report (verbatim) ===
+**Proposed lever (c1):** enable PyTorch TunableOp through `docker_env_vars`, with no file edits. That means `PYTORCH_TUNABLEOP_ENABLED=1`, plus `PYTORCH_TUNABLEOP_TUNING=1` on the first run. Later runs set `TUNING=0` to reuse the tuned results file.
 
-**Headline:** No depth explained the bottleneck (dispatch was skipped, operator and kernel were not selected), and no candidate beat baseline because nothing was measured. Latency is in ms, lower is better.
+**Did dispatch run?** No, not as a profiling run. The dispatch rung is marked "planned" and read an existing trace, `rocm_trace_lite_output/trace_summary.txt` (281,997 GPU ops), whose provenance is unknown. From that trace:
+- GEMM is about 70.7% of kernel time (`triton_mm` 67.0%, `Cijk_*` 3.7%), so the run reads as compute-bound.
+- The GPU is only about 5% busy, which points to host or launch overhead as a likely limit.
+- The operator and kernel rungs were skipped, as set by `depth=dispatch`.
 
-**Operator:** Skipped. The depth was set to dispatch, so the operator rung was not selected.
+**Execute is false.** Nothing was run or built, and no files were edited.
 
-**Dispatch:** Skipped, status unknown. `/home/ysha/MAD/rocm_trace_lite_output` exists but is empty, so there are no kernel hotspots to read. Nothing was run. The preflight call was denied by the permission system because it contained a shell variable the checker could not verify, so preflight did not execute. Any number measured under the profiler is evidence, not a clean benchmark score.
+- **Candidate status:** c1 is planned only and has 0 samples. The gate fails ("needs >= 2 samples on both sides"), so it is not trustworthy and nothing beats baseline.
+- **Expected gain:** most GEMM time is Inductor `triton_mm`, which TunableOp doesn't tune, so any gain is expected to be small or within noise.
 
-**Kernel:** Skipped, preset none. The depth was set to dispatch, so the kernel rung was not selected.
-
-**Expect:** Source is "skipped", so there are no projection numbers. Expect is off. It only applies to a Primus training model and needs `--expect`.
-
-| Candidate | Depth | Change | Evidence | Status | Median (n) | vs Baseline | Trustworthy |
-|---|---|---|---|---|---|---|---|
-| c1 | dispatch | Set `FASTWAM_KVSLAB=1` via `docker_env_vars`. The geak arm currently runs with 0. | None. The dispatch rung was skipped, so this rests on the model config only. | planned | n/a (0) | n/a | No. The gate failed: it needs at least 2 samples on both sides (baseline 0, candidate 0). |
-
-**Recommended configuration:** None. No candidate has `verdict.trustworthy` true, so the ranked plan to test on a GPU host is:
-1. c1: `FASTWAM_KVSLAB=1`. Run baseline and candidate at least twice each, interleaved if possible, and compare medians.
-   - Keep the change only if median latency drops, the gap is larger than the run-to-run spread, and status is SUCCESS.
-   - Before trusting results, verify the geak arm actually reads `FASTWAM_KVSLAB` and that the run script does not override it.
-   - No files change, so reverting is trivial.
-2. Optionally run the dispatch profile to get real hotspots before planning further candidates:
-   `madengine run --tags 'pyt_fam_fastwam_geak' --live-output -o perf_tune_dispatch.csv --additional-context '{"tools":[{"name":"rocm_trace_lite"}]}'`
-
-**Next clean madengine command:** Start the baseline first. Launch it with `bash .claude/skills/mad-common/preflight.sh` and then:
-```
-bash .claude/skills/mad-common/mad-run.sh start base1 -- madengine run --tags pyt_fam_fastwam_geak --live-output -o perf_tune_c1_r1.csv
-```
-Then run `base2`, `kvslab1_r1` and `kvslab1_r2` as listed in the candidate's commands. The `kvslab1` runs add `--additional-context '{"docker_env_vars":{"FASTWAM_KVSLAB":"1"}}'`. Poll each with `bash .claude/skills/mad-common/mad-run.sh wait <run-id>` until it reports succeeded or failed.
-
-=== End of verbatim report ===
-(The workflow output HTML-escaped "<run-id>" as "&lt;run-id&gt;"; it is shown unescaped above.)
-
-=== Note: lever proposed vs. lever this post will measure ===
-The propose step named FASTWAM_KVSLAB=1 (recorded above), not
-PYTORCH_TUNABLEOP_ENABLED=1. The post will measure TunableOp. No profiling
-evidence backs either lever. Nothing below was run.
-
-Clean two-repeat baseline (workflow's own planned commands):
-  madengine run --tags 'pyt_fam_fastwam_geak' --live-output -o perf_tune_baseline_r1.csv
-  madengine run --tags 'pyt_fam_fastwam_geak' --live-output -o perf_tune_baseline_r2.csv
-
-Clean two-repeat TunableOp candidate (PYTORCH_TUNABLEOP_ENABLED=1 merged into docker_env_vars):
-  madengine run --tags 'pyt_fam_fastwam_geak' --live-output -o perf_tune_tunableop_r1.csv --additional-context '{"docker_env_vars":{"PYTORCH_TUNABLEOP_ENABLED":"1"}}'
-  madengine run --tags 'pyt_fam_fastwam_geak' --live-output -o perf_tune_tunableop_r2.csv --additional-context '{"docker_env_vars":{"PYTORCH_TUNABLEOP_ENABLED":"1"}}'
-
-When launched from an agent, wrap each in:
-  bash .claude/skills/mad-common/mad-run.sh start <run-id> -- <command>
-  bash .claude/skills/mad-common/mad-run.sh wait <run-id>
+The full report is in `/tmp/claude-1027/-home-ysha-MAD/aa73e85d-fe83-4dd0-bf24-ee47fcf9c935/tasks/wxbuym46q.output`.
