@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="160" viewBox="0 0 720 160" role="img" aria-label="fw skmm kernel uses 28.3 percent of peak bandwidth and 2.2 percent of peak matrix-core throughput.">
+<title>Where _fw_skmm_kernel sits against the MI350X peaks</title>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<style>text{font-family:sans-serif;fill:#1a1a1a} .muted{fill:#555}</style>
+<text x="16" y="26" font-size="16" font-weight="600">_fw_skmm_kernel against the MI350X peaks</text>
+<text x="16" y="68" font-size="13">bandwidth</text>
+<rect x="200" y="54" width="155.6" height="18" fill="#1f4e79"/>
+<text x="364" y="68" font-size="12">28.3% of 8.0 TB/s</text>
+<text x="16" y="108" font-size="13">matrix cores</text>
+<rect x="200" y="94" width="12.1" height="18" fill="#1f4e79"/>
+<text x="220" y="108" font-size="12">2.2% of peak</text>
+<text x="16" y="144" font-size="12" class="muted">A full bar would be the published peak. The kernel is waiting on memory.</text>
+</svg>
