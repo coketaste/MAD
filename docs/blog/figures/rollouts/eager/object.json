@@ -1,0 +1,8 @@
+{
+  "arm": "eager",
+  "suite": "libero_object",
+  "task_id": 0,
+  "language": "pick up the alphabet soup and place it in the basket",
+  "success": true,
+  "frames": 171
+}

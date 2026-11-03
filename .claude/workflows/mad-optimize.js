@@ -6,7 +6,7 @@ export const meta = {
     { title: 'Setup', detail: 'pinned GEAK checkout outside the repo, only on execute' },
     { title: 'Source', detail: 'kernel source from --kernel-path or a copy out of the image' },
     { title: 'Score', detail: 'clean baseline, then the patched tree, two runs each' },
-    { title: 'Profile', detail: 'one rocm_trace_lite run; the top kernel is the GEAK task' },
+    { title: 'Profile', detail: 'a warm-up, then a rocprofv3 kernel trace for the top kernel, then one counter run for its kernel card and a code-object summary; the card shapes the GEAK task' },
     { title: 'GEAK', detail: 'kernel_workflow writes the host source tree' },
     { title: 'Smoke', detail: 'optional smoke tag only after the gate passes' },
   ],
@@ -21,6 +21,12 @@ export const meta = {
 // copies kernel source, measures a clean baseline, profiles, runs
 // kernel_workflow, then measures the patched tree. GEAK's geomean does not
 // decide. The copy of gate() below must stay the same as mad-tune-search.js.
+//
+// The Profile phase follows .claude/skills/mad-common/kernel-analysis.md:
+// dispatch names the top kernel, one rocprofv3 counter run of that kernel gives
+// its kernel card (bound: compute | bandwidth | latency | unknown), and
+// kernel-tools.py asm summarizes its code object. The GEAK task names the bound.
+// A failed counter run is recorded and the task falls back to the dispatch line.
 
 const GEAK_REPO = 'https://github.com/AMD-AGI/GEAK.git'
 // fa86fd1. kernel_workflow/kernel_workflow.js exists on this commit.
@@ -167,6 +173,31 @@ function gate(base, cand, baseMetric, candMetric, higherIsBetter) {
   }
 }
 
+function regexEscape(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// Counter group from the kernel name: matrix kernels get the compute group.
+function kernelGroupFor(name) {
+  return /mm|gemm|Cijk|conv|attn|attention|flash|mfma|bmm|matmul/i.test(String(name || '')) ? 'compute' : 'memory'
+}
+
+const BOUND_HINT = {
+  compute: 'raise MFMA utilization (tile and MFMA instruction shape, fewer non-matrix instructions in the inner loop)',
+  bandwidth: 'cut the bytes it moves (16-byte vector loads, fusing a producer or consumer, LDS reuse)',
+  latency: 'raise occupancy or cut stalls and launches (fewer registers or LDS per workgroup, prefetch, fusing small launches)',
+}
+
+function geakTaskFor(profile, card) {
+  if (!profile.kernelName) return profile.topKernel
+  let task = `Optimize the hottest GPU kernel "${profile.kernelName}" (${profile.topKernel}) under the kernel_path tree.`
+  if (profile.inSourceTree === false)
+    task += ' It is not defined in that tree (likely torch.compile/Inductor generated): optimize the code in kernel_path that produces it, and say so if nothing there can change it.'
+  if (card && BOUND_HINT[card.bound])
+    task += ` Kernel card: ${card.line || card.bound + '-bound'}. It is ${card.bound}-bound, so ${BOUND_HINT[card.bound]}.`
+  return task
+}
+
 function parseMount(raw) {
   if (!raw) return null
   const eq = String(raw).indexOf('=')
@@ -223,9 +254,10 @@ const ctxObj = normalizeContext(cfg.additionalContext)
 const PREFLIGHT = 'bash .claude/skills/mad-common/preflight.sh'
 const MAD_RUN = 'bash .claude/skills/mad-common/mad-run.sh'
 const GEAK_RUN = 'bash .claude/skills/mad-common/geak-run.sh'
-const RUN_HOW = `Run every madengine command through the run helper, never in the foreground (a tool call ends after 10 minutes):
+const RUN_HOW = `Each Bash tool call runs exactly one command. A call containing &&, ;, or a newline that joins two commands is denied, and nothing in this session can approve it, so the phase stops. Never join commands. Never prepend a rocm-smi or GPU check.
+Run every madengine command through the run helper, never in the foreground (a tool call ends after 10 minutes). One call:
   ${MAD_RUN} start <run-id> -- <madengine command>
-then repeat \`${MAD_RUN} wait <run-id>\` until its first line says MAD_RUN_STATUS=succeeded or failed. Use a fresh run-id per run (append -2, -3, ... if start says it exists). One phase at a time: GEAK's gpu_lock.sh and MAD's /tmp/mad-gpu.lock do not share a lock.`
+Later calls, one command each: \`${MAD_RUN} wait <run-id>\` until its first line says MAD_RUN_STATUS=succeeded or failed. Use a fresh run-id per run (append -2, -3, ... if start says it exists). GEAK's gpu_lock.sh and MAD's /tmp/mad-gpu.lock do not share a lock, so run one phase at a time.`
 
 function withoutTools(extraMount) {
   const obj = { ...(ctxObj || {}) }
@@ -290,8 +322,39 @@ const baseOuts = Array.from({ length: repeats }, (_, k) => `perf_opt_baseline_r$
 const patchedOuts = Array.from({ length: repeats }, (_, k) => `perf_opt_patched_r${k + 1}.csv`)
 const baseCommands = baseOuts.map(o => runCmd(model.name, o, cleanPayload))
 const patchedCommands = patchedOuts.map(o => runCmd(model.name, o, patchedPayload))
-const profilePayload = JSON.stringify({ ...(JSON.parse(cleanPayload || '{}')), tools: [{ name: 'rocm_trace_lite' }] })
-const profileCommand = runCmd(model.name, 'perf_opt_profile.csv', profilePayload)
+const KERNEL_TOOLS = 'python3 .claude/skills/mad-common/kernel-tools.py'
+// The code-object cache runs to hundreds of MB; keep it out of the repo.
+const kernelRunDir = `/var/tmp/mad-kernel/opt_${safeName(model.name)}_kernel`
+const kernelCtxArg = cleanPayload ? ` --context ${shellQuote(cleanPayload)}` : ''
+// Two plain commands, not ctx=$(...): a headless session cannot approve a
+// command substitution.
+function ctxFile(mode) {
+  return `${kernelRunDir}/${mode === 'counters' ? 'context.json' : `context_${mode}.json`}`
+}
+function ctxRun(outFile, mode) {
+  const flags = ['--tags ' + shellQuote(model.name), '--live-output', '-o ' + outFile]
+  if (timeout) flags.push('--timeout ' + timeout)
+  return `madengine run ${flags.join(' ')} --additional-context-file ${ctxFile(mode)}`
+}
+// A cold torch.compile traces its own autotuning, so the trace runs on a warmed
+// cache; rocprofv3 also records kernels replayed from HIP graphs.
+const profileCommand = [
+  `${KERNEL_TOOLS} context --mode warm --run-dir ${kernelRunDir}${kernelCtxArg}`,
+  ctxRun('perf_opt_warm.csv', 'warm'),
+  `${KERNEL_TOOLS} context --mode dispatch --run-dir ${kernelRunDir}${kernelCtxArg}`,
+  ctxRun('perf_opt_profile.csv', 'dispatch'),
+  `${KERNEL_TOOLS} rank --run-dir ${kernelRunDir}`,
+].join('\n')
+function kernelCommands(kernelName) {
+  const kernelArg = kernelName ? shellQuote(regexEscape(kernelName)) : "'<top dispatch kernel>'"
+  const group = kernelName ? kernelGroupFor(kernelName) : "'<compute|memory>'"
+  return [
+    `${KERNEL_TOOLS} context --mode counters --group ${group} --kernel ${kernelArg} --run-dir ${kernelRunDir}${kernelCtxArg}`,
+    ctxRun('perf_opt_kernel.csv', 'counters'),
+    `${KERNEL_TOOLS} card --run-dir ${kernelRunDir}`,
+    `${KERNEL_TOOLS} asm --run-dir ${kernelRunDir}${kernelName ? ' --kernel ' + shellQuote(kernelName) : ''}`,
+  ]
+}
 
 const evalDir = `$HOME/.mad-optimize/${safeName(model.name)}/geak_eval`
 function geakInvocation(task) {
@@ -332,6 +395,7 @@ function stopped(reason, extra) {
 if (!execute) {
   for (const c of baseCommands) log(`Baseline (image tree, no source mount): ${c}`)
   log(`Profile: ${profileCommand}`)
+  for (const c of kernelCommands(null)) log(`Kernel card (top kernel from the profile): ${c}`)
   for (const c of patchedCommands) log(`Patched (source mounted): ${c}`)
   if (smokeTag) log(`Smoke, only if the gate passes: ${runCmd(smokeTag, 'perf_opt_smoke.csv', patchedPayload)}`)
   return {
@@ -343,6 +407,7 @@ if (!execute) {
     baselineCommands: baseCommands,
     patchedCommands,
     profileCommand,
+    kernelCommands: kernelCommands(null),
   }
 }
 
@@ -393,7 +458,7 @@ const sourcePrompt = kernelPathArg
 Container path: ${containerPath}
 Host path: ${hostPath} (expand $HOME).
 Find an existing image whose name contains pyt_fam (docker images). If none exists, build with \`madengine build --tags ${shellQuote(tag)}\` and do not run the model.
-Then: id=$(docker create <image>); docker cp "$id:${containerPath}" "${hostPath}"; docker rm "$id".
+Then run three separate commands, without a command substitution: docker create <image> (it prints a container id), docker cp "<id>:${containerPath}" "${hostPath}", docker rm <id>.
 The copy must contain a .py, .triton, or .hip file. If it does not, return status "error", hasSource false, reason "this image has no kernel source; pass --kernel-path".`
     : model.url
       ? `The model url is ${model.url}. The image cloned that repo when it was built. Find the checkout inside the image and docker cp it to ${hostPath}. Do not clone GEAK and do not start a benchmark. Editable source means a .py, .triton, or .hip file. If you cannot find one, return status "error", hasSource false, reason "this image has no kernel source; pass --kernel-path".`
@@ -446,21 +511,53 @@ const PROFILE_SCHEMA = {
   },
 }
 const profile = await agent(
-  `Dispatch profile of "${model.name}". One rocm_trace_lite run, no rocprofv3 tool in the same command. No source mount.
-Command: ${profileCommand}
+  `Dispatch profile of "${model.name}". A warm-up run with no profiler, then one rocprofv3 kernel-trace run on the same code-object cache. No source mount.
+The first Bash call is the first line below and nothing else. Each later line is its own later call.
+${profileCommand}
 ${RUN_HOW}
-Run id opt_profile. Read the trace summary and set topKernel to the single hottest kernel line (name and share) and kernelName to just that kernel's name. Then grep -rl kernelName (or its distinctive stem) under ${hostPath}; set inSourceTree true if an editable source file defines or generates it, false if not (for example an Inductor-generated triton_* kernel). The performance value on this run is evidence. Do not treat it as the score.
+Run id opt_warm, then opt_profile. The context line writes the file the madengine line reads. Then run the rank command (no GPU). The warm-up perf number is not a score. Read ${kernelRunDir}/kernel_rank.json and set topKernel to the single hottest kernel line (name and share) and kernelName to just that kernel's name. Then grep -rl kernelName (or its distinctive stem) under ${hostPath}; set inSourceTree true if an editable source file defines or generates it, false if not (for example an Inductor-generated triton_* kernel). The performance value on this run is evidence. Do not treat it as the score.
 If no GPU or no trace, status "error" and topKernel "".`,
   { label: 'profile', phase: 'Profile', schema: PROFILE_SCHEMA, agentType: 'mad-benchmark-runner' }
 )
 if (!profile || profile.status === 'error' || !profile.topKernel)
   return stopped(profile && profile.notes ? profile.notes : 'dispatch profile produced no kernel line', { baseline: baseStats })
 
+const KERNEL_SCHEMA = {
+  type: 'object',
+  required: ['status'],
+  properties: {
+    status: { type: 'string', enum: ['ran', 'skipped', 'error'] },
+    card: { type: ['object', 'null'], properties: {
+      kernel: { type: 'string' },
+      bound: { type: 'string', enum: ['compute', 'bandwidth', 'latency', 'unknown'] },
+      pctPeakBandwidth: { type: ['number', 'null'] },
+      pctPeakMfma: { type: ['number', 'null'] },
+      occupancy: { type: ['number', 'null'] },
+      occupancyLimiter: { type: ['string', 'null'] },
+      asmStatus: { type: ['string', 'null'] },
+      line: { type: 'string' },
+    } },
+    notes: { type: 'string' },
+  },
+}
+let kernelProfile = null
+if (profile.kernelName) {
+  kernelProfile = await agent(
+    `Kernel card for "${profile.kernelName}" in "${model.name}". Read .claude/skills/mad-common/kernel-analysis.md first. One rocprofv3 counter run, no rocm_trace_lite, no source mount (the image tree, same as the baseline).
+${kernelCommands(profile.kernelName).join('\n')}
+Run the context line, then the madengine line through the run helper (run id opt_kernel), then the card and asm commands (they read files, no GPU). If GPU use stays at 0% for more than a few minutes, the counter run has hung: stop it with the run helper and return status "error".
+${RUN_HOW}
+rocprofv3 runs the workload once per counter pass, so this takes several times longer than a clean run. Its performance number is not a sample.
+If the run fails but ${kernelRunDir}/kernel_card.json already names this kernel, return status "ran" and that card, and put the failure in notes. A killed counter run must not throw away a card from this run directory.
+Return status and card {kernel, bound exactly as ${kernelRunDir}/kernel_card.json states it, pctPeakBandwidth, pctPeakMfma, occupancy and occupancyLimiter from kernel_asm_summary.json, asmStatus (its "status"), line: the kernel card line from kernel-analysis.md, numbers from the JSON files only}.`,
+    { label: 'kernel', phase: 'Profile', schema: KERNEL_SCHEMA, agentType: 'mad-benchmark-runner' }
+  )
+}
+const card = kernelProfile && kernelProfile.status === 'ran' ? kernelProfile.card || null : null
+log(`Kernel card: ${card ? card.line || card.bound : `none (${(kernelProfile && kernelProfile.notes) || 'no kernel name from the profile'})`}`)
+
 phase('GEAK')
-const geakTask = profile.kernelName
-  ? `Optimize the hottest GPU kernel "${profile.kernelName}" (${profile.topKernel}) under the kernel_path tree.` +
-    (profile.inSourceTree === false ? ' It is not defined in that tree (likely torch.compile/Inductor generated): optimize the code in kernel_path that produces it, and say so if nothing there can change it.' : '')
-  : profile.topKernel
+const geakTask = geakTaskFor(profile, card)
 if (profile.inSourceTree === false)
   log(`Warning: "${profile.kernelName}" was not found in ${hostPath}; GEAK may have nothing editable to patch.`)
 const liveInvocation = geakInvocation(geakTask)
@@ -476,10 +573,12 @@ const GEAK_SCHEMA = {
 }
 const geak = await agent(
   `Run GEAK kernel_workflow for "${model.name}". You have no Workflow tool and must not try to use one. kernel_workflow.js is started in its own headless Claude session by the helper ${GEAK_RUN}, which holds the same GPU lock as ${MAD_RUN}.
-1. Write this object as JSON to /tmp/opt_geak_args.json (expand $HOME to an absolute path in kernel_path and eval_dir; keep every other value as is):
-${JSON.stringify(liveInvocation.args, null, 2)}
+1. Write /tmp/opt_geak_args.json with one Bash call in exactly this shape. Do not use a heredoc, a brace, or a JSON literal in the command: those are denied and the phase stops. Expand $HOME to an absolute path in kernel_path and eval_dir. The task value is the task field below, as one argument:
+python3 -I -c 'import json,sys; json.dump(dict(kernel_path=sys.argv[1], workflow_dir=sys.argv[2], budget=sys.argv[3], gpu_ids=sys.argv[4], task=sys.argv[5], apply_to_original=sys.argv[6], eval_dir=sys.argv[7]), open("/tmp/opt_geak_args.json","w"))' '<kernel_path>' '<workflow_dir>' '<budget>' '<gpu_ids>' '<task>' 'true' '<eval_dir>'
+Fields:
+${Object.entries(liveInvocation.args).map(([k, v]) => k + ': ' + v).join('\n')}
 2. If eval_dir already exists and is not empty, return status "error" with that reason. Do not delete it.
-3. Run: ${GEAK_RUN} start opt_geak ${geakHome} /tmp/opt_geak_args.json  (append -2, -3, ... to the run-id if start says it exists).
+3. Run: ${GEAK_RUN} start opt_geak ${geakHome} /tmp/opt_geak_args.json  (append -2, -3, ... to the run-id if start says it exists). The diff belongs at the eval_dir as final_patch.diff. If the session wrote it one directory above eval_dir, status copies it into eval_dir.
 4. Repeat \`${GEAK_RUN} wait <run-id>\` until its first line says GEAK_RUN_STATUS=succeeded or failed. A tool call ends after 10 minutes, so keep calling wait. This can take hours.
 5. On succeeded, return status "ok" and expDir = the eval_dir from that line. Read geomean from the log or ${evalDir}/ if GEAK printed one (null if none); it does not decide whether the patch is kept.
 6. On failed, return status "error", expDir null, and reason = the status line plus the most telling lines of the log tail (the real cause, for example no Workflow tool or the session returned before the workflow finished).
@@ -546,13 +645,15 @@ const reportBody = {
   containerPath,
   profiledPerformance: profile.performance,
   topKernel: profile.topKernel,
+  kernelCard: card,
+  geakTask,
   smoke,
 }
 phase('Smoke')
 const report = await agent(
   `Write the mad-optimize report for this one model. Use only the JSON below. Do not invent numbers.
 The profiled performance is evidence, not the score. GEAK's geomean does not decide. The gate does.
-Say whether the patch is kept, both medians, the spread, the gate reason, the exp dir, and the smoke rate when one was measured.
+Say whether the patch is kept, both medians, the spread, the gate reason, the exp dir, the kernel card line as given (or that there was none), and the smoke rate when one was measured.
 ${JSON.stringify(reportBody)}`,
   { phase: 'Smoke', agentType: 'mad-perf-analyst' }
 )
@@ -564,6 +665,7 @@ return {
   cloneCommand, geakHome, kernelWorkflow, workflowDir, budget,
   geakInvocation: liveInvocation,
   containerPath, hostPath, expDir,
+  kernelCard: card,
   baseline: baseStats,
   patched: candStats,
   gate: verdict,

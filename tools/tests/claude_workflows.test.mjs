@@ -21,8 +21,8 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 // declarations are hoisted, so they exist before the script throws).
 const HELPERS = {
   'mad-benchmark-sweep.js': ['tokenize', 'parseCli', 'pyLiteralToJson', 'normalizeContext'],
-  'mad-tune-search.js': ['tokenize', 'parseCli', 'pyLiteralToJson', 'normalizeContext', 'stats', 'gate'],
-  'mad-optimize.js': ['tokenize', 'parseCli', 'pyLiteralToJson', 'normalizeContext', 'stats', 'gate'],
+  'mad-tune-search.js': ['tokenize', 'parseCli', 'pyLiteralToJson', 'normalizeContext', 'stats', 'gate', 'leverFits', 'regexEscape'],
+  'mad-optimize.js': ['tokenize', 'parseCli', 'pyLiteralToJson', 'normalizeContext', 'stats', 'gate', 'geakTaskFor', 'kernelGroupFor'],
 }
 
 function load(name) {
@@ -220,7 +220,7 @@ test('tune-search: a tag is required', async () => {
   assert.equal(calls.length, 0)
 })
 
-function tuneAgent({ models = ['dummy/dummy_multi'], tree = () => '', base = [100, 101, 99], cand = [110, 111, 109], trustworthy = true } = {}) {
+function tuneAgent({ models = ['dummy/dummy_multi'], tree = () => '', base = [100, 101, 99], cand = [110, 111, 109], trustworthy = true, card = null, proposals = null } = {}) {
   return (prompt, opts) => {
     const label = opts.label || ''
     if (label === 'resolve') return {
@@ -235,12 +235,14 @@ function tuneAgent({ models = ['dummy/dummy_multi'], tree = () => '', base = [10
     }
     if (label.startsWith('verify:')) return { id: label.slice(7), trustworthy }
     if (opts.phase === 'Propose') return {
-      candidates: [
+      candidates: proposals || [
         { id: 'c1', change: 'max-num-seqs=512', hypothesis: 'h', evidence: 'e', depth: 'dispatch', leverKind: 'arg' },
         { id: 'c2', change: 'HIP graphs', hypothesis: 'h', evidence: 'e', depth: 'dispatch', leverKind: 'env' },
       ],
     }
-    if (['Operator', 'Dispatch', 'Kernel'].includes(opts.phase)) return { status: 'ran', evidence: 'ev', bottleneck: 'compute' }
+    if (opts.phase === 'Dispatch') return { status: 'ran', evidence: 'ev', bottleneck: 'compute', hotspots: [{ name: 'triton_mm', pct: 66 }] }
+    if (opts.phase === 'Kernel') return { status: 'ran', evidence: 'ev', bottleneck: 'compute', card }
+    if (['Operator', 'Assembly'].includes(opts.phase)) return { status: 'ran', evidence: 'ev', bottleneck: 'compute' }
     return 'report'
   }
 }
@@ -293,6 +295,61 @@ test('tune-search: a Python-dict context reaches the clean baseline commands', a
   const baseline = calls.find(c => c.opts.label === 'baseline').prompt
   assert.match(baseline, /--additional-context '\{"docker_env_vars":\{"HF":"x"\}\}'/)
   assert.doesNotMatch(baseline, /"tools"/)
+})
+
+test('tune-search: plan mode prints all four rungs and never stacks rocm_trace_lite with rocprofv3', async () => {
+  const { result, calls } = await run(TUNE, '--tag dummy_multi --candidates 1', tuneAgent())
+  const phases = calls.map(c => c.opts.phase)
+  for (const rung of ['Operator', 'Dispatch', 'Kernel', 'Assembly']) assert.ok(phases.includes(rung), rung)
+  const dispatchPrompt = calls.find(c => c.opts.phase === 'Dispatch').prompt
+  assert.match(dispatchPrompt, /context --mode warm --run-dir \/var\/tmp\/mad-kernel\/tune_dummy_multi_kernel[\s\S]*context --mode dispatch --run-dir \/var\/tmp\/mad-kernel\/tune_dummy_multi_kernel[\s\S]*kernel-tools\.py rank --run-dir \/var\/tmp\/mad-kernel\/tune_dummy_multi_kernel/)
+  assert.match(dispatchPrompt, /kernel_rank\.json/)
+  const kernel = calls.find(c => c.opts.phase === 'Kernel').prompt
+  assert.doesNotMatch(kernel, /--mode warm/)
+  assert.match(kernel, /kernel-tools\.py context --mode counters --group compute --kernel 'triton_mm'/)
+  assert.match(kernel, /--additional-context-file \/var\/tmp\/mad-kernel\/tune_dummy_multi_kernel\/context\.json/)
+  assert.doesNotMatch(kernel, /\$\(/)
+  assert.match(kernel, /kernel-tools\.py card --run-dir \/var\/tmp\/mad-kernel\/tune_dummy_multi_kernel/)
+  assert.match(calls.find(c => c.opts.phase === 'Assembly').prompt, /kernel-tools\.py asm --run-dir \/var\/tmp\/mad-kernel\/tune_dummy_multi_kernel --kernel 'triton_mm'/)
+  for (const c of calls) {
+    const tools = c.prompt.match(/"tools":\[[^\]]*\]/g) || []
+    for (const t of tools) assert.ok(!(t.includes('rocm_trace_lite') && t.includes('rocprof')), t)
+  }
+  assert.equal(result.assembly.status, 'ran')
+})
+
+test('tune-search: a launch-bound dispatch skips the kernel and assembly rungs', async () => {
+  const respond = tuneAgent()
+  const { result } = await run(TUNE, '--tag dummy_multi --candidates 1',
+    (p, o) => o.phase === 'Dispatch' ? { status: 'ran', evidence: 'gaps', bottleneck: 'launch', hotspots: [] } : respond(p, o))
+  assert.equal(result.kernel.status, 'skipped')
+  assert.equal(result.assembly.status, 'skipped')
+})
+
+test('tune-search: a kernel lever that does not match the card bound is dropped before measuring', async () => {
+  const { leverFits } = await helpersOf(TUNE)
+  assert.equal(leverFits({ depth: 'kernel', leverBound: 'bandwidth' }, 'latency'), false)
+  assert.equal(leverFits({ depth: 'kernel', leverBound: 'any' }, 'latency'), true)
+  assert.equal(leverFits({ depth: 'assembly', leverBound: 'latency' }, 'latency'), true)
+  assert.equal(leverFits({ depth: 'dispatch' }, 'latency'), true, 'only kernel and assembly levers are filtered')
+  assert.equal(leverFits({ depth: 'kernel', leverBound: 'bandwidth' }, 'unknown'), true, 'an unknown bound filters nothing')
+
+  const card = { kernel: 'triton_mm', bound: 'latency', line: 'triton_mm: latency' }
+  const proposals = [
+    { id: 'vec', change: 'vectorize loads', hypothesis: 'h', evidence: 'e', depth: 'kernel', leverKind: 'env', leverBound: 'bandwidth' },
+    { id: 'occ', change: 'num_warps=4', hypothesis: 'h', evidence: 'e', depth: 'kernel', leverKind: 'env', leverBound: 'latency' },
+  ]
+  const { result, calls, logs } = await run(TUNE, '--tag dummy_multi --candidates 2 --execute', tuneAgent({ card, proposals }))
+  assert.deepEqual(result.candidates.map(c => c.id), ['occ'])
+  assert.deepEqual(result.dropped.map(c => c.id), ['vec'])
+  assert.equal(calls.some(c => c.opts.label === 'eval:vec'), false)
+  assert.ok(logs.some(m => /Dropped candidate vec/.test(m)))
+  assert.match(calls.find(c => c.opts.phase === 'Propose').prompt, /bound is "latency"/)
+})
+
+test('tune-search: the kernel regex escapes the dispatch name', async () => {
+  const { regexEscape } = await helpersOf(TUNE)
+  assert.equal(regexEscape('void at::native::f<4>(int)'), 'void at::native::f<4>\\(int\\)')
 })
 
 // ── mad-optimize ──────────────────────────────────────────────────────────
@@ -396,9 +453,41 @@ test('optimize: GEAK is launched through geak-run.sh, not the Workflow tool', as
   assert.match(g.prompt, /geak-run\.sh start opt_geak/)
   assert.match(g.prompt, /must not try to use one/)
   assert.doesNotMatch(g.prompt, /Invoke the Workflow tool/)
-  assert.match(g.prompt, /"eval_dir"/)
-  assert.match(g.prompt, /Optimize the hottest GPU kernel \\"triton_mm\\"/)
+  assert.match(g.prompt, /eval_dir: /)
+  assert.match(g.prompt, /Optimize the hottest GPU kernel "triton_mm"/)
   assert.match(g.prompt, /not defined in that tree/)
+})
+
+test('optimize: plan mode prints the kernel-card commands', async () => {
+  const { result } = await run(OPT, '--tag pyt_fam_fastwam_geak', optAgent())
+  assert.equal(result.kernelCommands.length, 4)
+  assert.match(result.profileCommand, /--mode warm[\s\S]*-o perf_opt_warm\.csv[\s\S]*--mode dispatch[\s\S]*-o perf_opt_profile\.csv[\s\S]*kernel-tools\.py rank/)
+  assert.match(result.kernelCommands[0], /kernel-tools\.py context --mode counters --group '<compute\|memory>' --kernel '<top dispatch kernel>'/)
+  assert.match(result.kernelCommands[1], /madengine run .*-o perf_opt_kernel\.csv --additional-context-file \/var\/tmp\/mad-kernel\/opt_\S+_kernel\/context\.json/)
+  assert.doesNotMatch(result.profileCommand, /\$\(/)
+  assert.doesNotMatch(result.kernelCommands[1], /rocm_trace_lite/)
+  assert.match(result.kernelCommands[3], /kernel-tools\.py asm/)
+})
+
+test('optimize: the GEAK task names the bound from the kernel card', async () => {
+  const { geakTaskFor, kernelGroupFor } = await helpersOf(OPT)
+  const profile = { kernelName: 'triton_mm', topKernel: 'triton_mm 66%', inSourceTree: false }
+  const task = geakTaskFor(profile, { bound: 'latency', line: 'triton_mm: latency, occupancy 2 (registers)' })
+  assert.match(task, /Optimize the hottest GPU kernel "triton_mm"/)
+  assert.match(task, /It is latency-bound, so raise occupancy/)
+  assert.match(task, /occupancy 2 \(registers\)/)
+  assert.doesNotMatch(geakTaskFor(profile, { bound: 'unknown' }), /-bound, so/)
+  assert.doesNotMatch(geakTaskFor(profile, null), /Kernel card/)
+  assert.equal(kernelGroupFor('triton_mm'), 'compute')
+  assert.equal(kernelGroupFor('triton_red_fused_add_mean'), 'memory')
+
+  const { calls } = await run(OPT, '--tag pyt_fam_fastwam_geak --execute', optAgent({
+    profile: { status: 'ran', topKernel: 'triton_mm 66%', kernelName: 'triton_mm', inSourceTree: false, performance: 25, metric: 'ms' },
+    geak: { status: 'error', expDir: null, reason: 'x' },
+  }))
+  const k = calls.find(c => c.opts.label === 'kernel')
+  assert.ok(k, 'the kernel-card agent ran')
+  assert.match(k.prompt, /--group compute --kernel 'triton_mm'/)
 })
 
 test('optimize: plan mode gives GEAK a fixed eval_dir', async () => {

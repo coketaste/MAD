@@ -19,9 +19,11 @@
 #
 # Report first line:
 #   GEAK_RUN_STATUS=queued|running|succeeded|failed exit=<code|...> dir=<dir> eval_dir=<dir|none> final_patch=present|missing
-# `succeeded` means the process exited 0 AND <eval_dir>/final_patch.diff exists.
-# `claude -p` can return while the workflow is still working, so a clean exit
-# with no final patch is reported as failed, never as success.
+# `succeeded` means the process exited 0 AND a non-empty final_patch.diff is in
+# <eval_dir>, or one directory above it. GEAK's instructions name eval_dir, but
+# a finished session has written the diff beside that directory. status copies
+# that file into eval_dir. `claude -p` can return while the workflow is still
+# working, so a clean exit with no final patch is reported as failed.
 #
 # State lives in .mad-runs/<run-id>/ (cmd, pid, log, started, exit_code, args.json).
 # MAD_GPU_LOCK overrides the lock file (default /tmp/mad-gpu.lock, shared with
@@ -53,10 +55,24 @@ eval_dir_of() { # prints the eval_dir from the saved args, or nothing
   python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("eval_dir",""))' "$1/args.json" 2>/dev/null || true
 }
 
+# A finished GEAK session writes final_patch.diff in eval_dir, or one directory
+# above it, next to the source tree. Copy the parent file into eval_dir so the
+# contract path exists.
+locate_patch() {
+  local ev="$1" parent
+  [ -n "$ev" ] || return 1
+  [ -s "$ev/final_patch.diff" ] && return 0
+  parent="$(dirname "$ev")"
+  [ -s "$parent/final_patch.diff" ] || return 1
+  cp "$parent/final_patch.diff" "$ev/final_patch.diff"
+  echo "[geak-run] copied ${parent}/final_patch.diff into ${ev}/" >&2
+  return 0
+}
+
 report() {
   local dir="$1" state code="none" ev patch=missing
   ev="$(eval_dir_of "$dir")"
-  [ -n "$ev" ] && [ -s "$ev/final_patch.diff" ] && patch=present
+  if locate_patch "$ev"; then patch=present; fi
   if [ -f "$dir/exit_code" ]; then
     code="$(cat "$dir/exit_code")"
     if [ "$code" = 0 ] && [ "$patch" = present ]; then state=succeeded; else state=failed; fi

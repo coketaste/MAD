@@ -15,6 +15,7 @@ started this one, so every measurement calls the Python entry point directly:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import statistics
@@ -88,6 +89,15 @@ def perf_line(text: str) -> float | None:
     return None
 
 
+def cache_root_dir():
+    # A kernel profile sets MAD_CODE_OBJECT_DIR so the compiled kernels outlive the run.
+    keep = os.environ.get("MAD_CODE_OBJECT_DIR")
+    if keep:
+        Path(keep).mkdir(parents=True, exist_ok=True)
+        return contextlib.nullcontext(keep)
+    return tempfile.TemporaryDirectory(prefix="fam_cache_")
+
+
 def measure_arm(label: str, cache_root: Path) -> float:
     src, steps, extra = ARM_SPECS[label]
     spec_name = "geak" if label == "geak@2" else label
@@ -129,7 +139,7 @@ def write_csv(path: Path, rows: list[tuple[str, float]]) -> None:
 
 def run_interleaved(rounds: int, csv_path: Path) -> None:
     samples: dict[str, list[float]] = {label: [] for label in INTERLEAVED}
-    with tempfile.TemporaryDirectory(prefix="fam_cache_") as tmp:
+    with cache_root_dir() as tmp:
         cache_root = Path(tmp)
         for round_index in range(rounds):
             for label in INTERLEAVED:
@@ -151,7 +161,7 @@ def run_interleaved(rounds: int, csv_path: Path) -> None:
 def run_one(label: str) -> None:
     if label not in ARM_SPECS:
         sys.exit(f"unknown arm {label}")
-    with tempfile.TemporaryDirectory(prefix="fam_cache_") as tmp:
+    with cache_root_dir() as tmp:
         value = measure_arm(label, Path(tmp))
     print(f"performance: {value:.4f} ms")
 

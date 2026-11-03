@@ -1,0 +1,8 @@
+{
+  "arm": "eager",
+  "suite": "libero_goal",
+  "task_id": 0,
+  "language": "open the middle drawer of the cabinet",
+  "success": true,
+  "frames": 147
+}

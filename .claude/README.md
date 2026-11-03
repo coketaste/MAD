@@ -81,7 +81,7 @@ and run only with `--execute`; `CLAUDE.md` describes the first two,
 │   │   ├── scripts/render_dockerfile.py  # Template renderer
 │   │   └── framework_templates/        # Jinja2 templates
 │   ├── mad-benchmark/, mad-profile/, mad-tune/, mad-report/, primus-projection/
-│   └── mad-common/                     # preflight.sh, mad-run.sh, geak-run.sh (shared helpers)
+│   └── mad-common/                     # preflight.sh, mad-run.sh, geak-run.sh, kernel-tools.py, kernel-analysis.md (shared helpers)
 └── prompts/
     └── model_addition_guide.md         # Detailed guide
 

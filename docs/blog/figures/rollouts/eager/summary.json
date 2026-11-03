@@ -1,0 +1,39 @@
+{
+  "arm": "eager",
+  "successes": 4,
+  "episodes": 4,
+  "tasks": [
+    {
+      "arm": "eager",
+      "suite": "libero_spatial",
+      "task_id": 1,
+      "language": "pick up the black bowl next to the ramekin and place it on the plate",
+      "success": true,
+      "frames": 134
+    },
+    {
+      "arm": "eager",
+      "suite": "libero_object",
+      "task_id": 0,
+      "language": "pick up the alphabet soup and place it in the basket",
+      "success": true,
+      "frames": 171
+    },
+    {
+      "arm": "eager",
+      "suite": "libero_goal",
+      "task_id": 0,
+      "language": "open the middle drawer of the cabinet",
+      "success": true,
+      "frames": 147
+    },
+    {
+      "arm": "eager",
+      "suite": "libero_10",
+      "task_id": 1,
+      "language": "put both the cream cheese box and the butter in the basket",
+      "success": true,
+      "frames": 269
+    }
+  ]
+}
