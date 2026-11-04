@@ -192,6 +192,20 @@ Use the multiple-results output of the pyt_fam_fastwam_latency run you just fini
 
 The GPU is idle for 70% of that window. Eager mode issues many small kernels, one PyTorch operation at a time, and the GPU waits for the host in between. The dispatch depth agrees: no single kernel takes more than 8.6% of eager GPU time. The top kernel is a hipBLASLt GEMM, followed by a mean reduction, an elementwise multiply, and attention, each near 8%. The latency ladder in section 4 is what that wait costs once `torch.compile` or the shipped GEAK tree is used.
 
+**The top eager kernel, measured on its own.** rocprofv3 hardware-counter collection does not finish on the eager arm. The run stops at the GPU-to-CPU copy at the end of an inference, with the GPU idle. Where the stopping point was checked, it was the first inference in two runs and the third in another. It stops the same way when the kernel filter matches no kernel at all, and with the SDMA copy engine turned off (`HSA_ENABLE_SDMA=0`). The trigger is counter collection on this arm, not a particular counter or kernel. The same eager run finishes under a rocprofv3 kernel trace and under PC sampling, and the GEAK arm finishes under counters.
+
+So the counters for the top eager kernel come from a short script that replays it outside the model. The kernel serves two `F.linear` shapes in the model, both bf16 with bias: 32×1024 by 1024×3072, and 32×1024 by 1024×4096. The script calls them in the model's 4:1 ratio and rotates through 80 weight tensors, so each call reads its weights from HBM. hipBLASLt picks the same kernel, with an identical name, and its average time matches the model's trace, 7.44 µs against 7.46 µs:
+
+| | top eager GEMM (hipBLASLt, replayed) |
+|---|---|
+| duration under counters | 7.44 µs |
+| workgroups per launch | 192 or 256, on 256 compute units |
+| achieved bandwidth | 12.8% of peak |
+| achieved matrix-core throughput | 1.2% of peak |
+| bound | bandwidth |
+
+With only 32 rows, the multiply cannot fill the GPU: each launch has at most one workgroup per compute unit, and finishes in a few microseconds. Speeding up this one GEMM would not change the picture much. Fusing operations and replaying them as graphs, which `torch.compile` and the GEAK tree do, removes the gaps between launches.
+
 A run under a profiler is slower than a clean run, so its `performance:` line is evidence, not a score. That holds for every profiled run in this post.
 
 **Prompt, operator depth**
@@ -249,7 +263,27 @@ No kernel dominates. The top one, `_fw_skmm_kernel`, is a split-K matrix multipl
 
 ![_fw_skmm_kernel reaches 28.3% of peak bandwidth and 2.2% of peak matrix-core throughput.](figures/kernel-bound.svg)
 
-The bandwidth and matrix-core rows are rocprofv3 hardware counters. The wait row is rocprofv3 PC sampling of the running kernel. The assembly listing is a third view: it disassembles the code object that the counter run kept, which is the compiled GPU kernel. `rocprofv3 --att` is the mode that collects both pieces in one GPU run, a per-instruction trace and a `.out` code object. This post did not use `--att`.
+The bandwidth and matrix-core rows are rocprofv3 hardware counters. The wait row is rocprofv3 PC sampling of the running kernel. The assembly listing is a third view: it disassembles the code object that the counter run kept, which is the compiled GPU kernel.
+
+The name `_fw_skmm_kernel` covers two compiled variants, one for each K shape. The counter run measured both: 39,120 launches of the K=3072 variant and 19,560 of the K=4096 variant, a 2:1 split. The card is their launch-weighted average. Its 26.7 matrix instructions per wave fall between the variants' 24 and 32, two thirds of the way toward 24.
+
+A rocprofv3 thread trace (`--att`) shows each variant instruction by instruction. It traced six launches of each on one compute unit and saved the code object each launch ran. Both saved code objects are byte-identical to the Triton builds the assembly listing disassembled:
+
+```text
+rocprofv3 --kernel-trace --att --att-target-cu 1 \
+  --kernel-include-regex '^_fw_skmm_kernel$' --kernel-iteration-range '[300-305]' \
+  -d att -- python3 fam_driver.py --mode arm --arm geak
+```
+
+| | K=3072 (2/3 of launches) | K=4096 (1/3 of launches) |
+|---|---:|---:|
+| instructions | 240 | 289 |
+| matrix (MFMA) instructions | 24 | 32 |
+| traced cycles in `s_waitcnt` | 60% | 68% |
+| stall cycles in `s_waitcnt` | 76% | 88% |
+| traced cycles in MFMA | 1.9% | 2.6% |
+
+The `s_waitcnt` instructions that cost the most wait on global loads (`vmcnt`). Both variants spend their time waiting for memory, which matches the PC-sampling row.
 
 The kernel moves data far faster than it computes, and it spends most of its time waiting for memory. More matrix-core work would not help. The published 9.2× came from cutting launches and data movement across the model. What is left for a further edit is the same kind of change at a smaller scale: fewer bytes, or folding the separate reduction launch into the multiply. Retuning the tile of this one kernel cannot repeat the 9×.
 
@@ -392,8 +426,8 @@ Mount the weights the same way as the latency run. Report the performance line. 
 - Everything ran on one GPU of a shared eight-GPU host. The cited latency table has three rounds per arm, and the sweep cells have one sample each.
 - The smokes run one trial per task. They check that the 2-step arm still finishes tasks. They are not the published 11-run LIBERO evaluation, and they do not establish accuracy parity.
 - The patched-model samples in section 7 are 24.79 ms and 35.88 ms. The run does not show why they differ. With two samples, the result is "not kept." It is not a measured slowdown.
-- Hardware-counter collection on the eager arm did not finish: the GPU went idle while the host waited. PC sampling finished and ranked the same hipBLASLt GEMM first.
-- Disassembling the code objects kept by the rocprofv3 counter run found two compiled variants of `_fw_skmm_kernel` with the same register count, so that listing does not say which variant the kernel card measured. This post did not run `rocprofv3 --att`.
+- rocprofv3 counter collection stalls the eager arm, even with a kernel filter that matches nothing. The eager GEMM's counters come from replaying it outside the model. The replay runs the same kernel at the same average time, but neighboring kernels and cache contents differ from the model.
+- The thread trace covers six launches of each `_fw_skmm_kernel` variant, on one compute unit.
 
 ## Setup
 
