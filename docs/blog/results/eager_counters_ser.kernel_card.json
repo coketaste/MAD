@@ -1,0 +1,70 @@
+{
+  "arch": "gfx950",
+  "peaks": {
+    "product": "AMD Instinct MI350X",
+    "hbm_tbps": 8.0,
+    "bf16_tflops": 2306.9,
+    "source": "public spec sheet"
+  },
+  "kernels": [
+    {
+      "kernel": "Cijk_Alik_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT16x32x512_MI16x16x1_SN_LDSB1_AFC0_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_CD1_1_CLR1_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB8_GSU0_GSUAMB_GLS0_HPLR0_ISA950_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB1024_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA16_LPB16_LPMXSA0_LPMXSB0_LPM0_LRVW8_LWPMn1_MIAV0_MIWT1_2_MXLIBL_MXSFNS_MO40_MGRIPM3_NTn1_NTA4_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA1_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK5_SKFTR0_SKFDPO0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS1_TLDSM1_ULSGRO0_USL1_USLMX0_UIOFGRO0_UPLRP0_USFGRO0_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS64_WG16_4_4",
+      "dispatches_profiled": 3000,
+      "duration_us": 7.16,
+      "grid": 49152.0,
+      "workgroup": 256.0,
+      "vgpr": 120.0,
+      "agpr": 8.0,
+      "sgpr": 96.0,
+      "lds_bytes": 50688.0,
+      "scratch_bytes": 0.0,
+      "counters": {
+        "FETCH_SIZE": 7168.4,
+        "GRBM_GUI_ACTIVE": 259103.1,
+        "SQ_ACTIVE_INST_VALU": 221184.0,
+        "SQ_BUSY_CYCLES": 430720.2,
+        "SQ_INSTS_LDS": 55705.6,
+        "SQ_INSTS_MFMA": 13107.2,
+        "SQ_INSTS_SALU": 289996.8,
+        "SQ_INSTS_SMEM": 4096.0,
+        "SQ_INSTS_VALU": 217907.2,
+        "SQ_INSTS_VALU_MFMA_MOPS_BF16": 419430.4,
+        "SQ_INSTS_VALU_MFMA_MOPS_F16": 0.0,
+        "SQ_INSTS_VALU_MFMA_MOPS_F32": 0.0,
+        "SQ_INSTS_VMEM_RD": 21299.2,
+        "SQ_INSTS_VMEM_WR": 1638.4,
+        "SQ_LDS_BANK_CONFLICT": 0.0,
+        "SQ_LDS_IDX_ACTIVE": 268697.6,
+        "SQ_VALU_MFMA_BUSY_CYCLES": 209715.2,
+        "SQ_WAIT_ANY": 1485302.4,
+        "SQ_WAIT_INST_ANY": 499988.2,
+        "SQ_WAVES": 819.2,
+        "SQ_WAVE_CYCLES": 2726666.6,
+        "WRITE_SIZE": 204.8
+      },
+      "bytes": 7550168.789333333,
+      "mfma_flops": 214748364.8,
+      "achieved_tbps": 1.054,
+      "pct_peak_bandwidth": 13.18,
+      "achieved_mfma_tflops": 29.99,
+      "pct_peak_mfma": 1.3,
+      "flops_per_byte": 28.44,
+      "ridge_flops_per_byte": 288.4,
+      "per_wave": {
+        "lds": 68.0,
+        "mfma": 16.0,
+        "salu": 354.0,
+        "smem": 5.0,
+        "valu": 266.0,
+        "vmem_rd": 26.0,
+        "vmem_wr": 2.0
+      },
+      "wait_share": 0.545,
+      "lds_bank_conflict_ratio": 0.0,
+      "bound": "bandwidth",
+      "bound_reason": "13.2% of peak bandwidth against 1.3% of peak MFMA",
+      "total_us": 21480.0,
+      "variants_with_this_name": 1
+    }
+  ]
+}

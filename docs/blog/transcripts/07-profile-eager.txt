@@ -1,3 +1,5 @@
+The operator table in the post is the 2026-11-03 rerun in 14-rerun-2026-11-03.txt (elementwise 50.78%, idle 70.33%). This file is the 2026-11-02 capture.
+
 $ bash .claude/skills/mad-common/mad-run.sh start rerun-profile -- \
     madengine run -m /tmp/fam-manifests/pyt_fam_fastwam_eager.json \
     --live-output -o perf_rerun_profile_eager.csv \

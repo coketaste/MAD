@@ -38,3 +38,18 @@ ENABLED=1 with tuning unset, same clean manifest:
 The gate needs two candidate samples. The candidate side does not have them.
 The lever is not kept. No tracked file was edited.
 The speedup in perf_fam_latency.csv is the tree the image already contained.
+
+Earlier clean attempt, 2026-11-01. Same lever. These four runs had no profiler selected.
+
+fam-tune-base-1      performance: 25.0754 ms
+fam-tune-base-2      performance: 25.5096 ms
+median 25.2925 ms, spread (max-min)/median = 1.72%
+
+fam-tune-tunable-1   performance: 24.5579 ms
+fam-tune-tunable-2   performance: 24.8667 ms
+median 24.7123 ms, spread 1.25%
+
+Improvement (25.2925 - 24.7123) / 25.2925 = 2.29%, against max(1.72%, 1.25%, 1%).
+The numeric gate passes.
+
+Unmodified GEAK the same day, clean runs: fam-latency-3 rounds 24.431, 24.613, and 24.562 ms; the two baselines above; sweep cell 24.8130 ms. The span is 24.431 ms to 25.5096 ms. Both TunableOp samples sit inside it. fam-tune-dispatch measured 25.2028 ms under rocm_trace_lite and is not a score. Not kept. No tracked file was edited.

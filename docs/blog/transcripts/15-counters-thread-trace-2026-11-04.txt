@@ -1,0 +1,32 @@
+2026-11-04. The eager GEMM card the post cites, the isolated replay, the stall repro, and the GEAK thread trace. Card durations are medians. Counter totals in a card are means.
+
+Eager GEMM, short run. AMD_SERIALIZE_KERNEL=3. One warm-up inference and one timed inference, 3,000 dispatches across five counter passes.
+  Source: /var/tmp/mad-kernel/2026-11-04/eager_counters_ser/kernel_card.json
+  Copies: runs/2026-11-04/eager_counters_ser.kernel_card.json
+          docs/blog/results/eager_counters_ser.kernel_card.json
+  duration 7.16 µs, bandwidth 13.18% of peak, MFMA 1.30% of peak, bound bandwidth.
+  The in-model kernel trace of the same kernel has median 7.44 µs and mean 7.46 µs (transcript 14), so this card is 3.8% below the trace median.
+
+Replay outside the model, gemm_iso.py. runs/2026-11-04/eager_gemm_iso.kernel_card.json
+  3,250 dispatches, duration 7.44 µs, bandwidth 12.75% of peak, MFMA 1.25% of peak, bound bandwidth.
+  7.44 µs matches the in-model trace median.
+
+65-inference run, 25 warm-up and 40 timed, 97,500 dispatches. Run eager_counters_ser_full2.
+  runs/2026-11-04/eager_in_model.kernel_card.json is this run, not the short card.
+  duration 7.16 µs, bandwidth 13.23% of peak, mean MFMA 3.31%.
+  The post keeps the short run as the card, because about one dispatch in five inflated a matrix-op count.
+
+GEAK kernel card, runs/2026-11-03/geak_kernel/kernel_card.json.
+  _fw_skmm_kernel, 58,680 dispatches, duration 4.32 µs (median), bandwidth 28.29% of peak, MFMA 2.24% of peak.
+  The dispatch-trace median is 5.00 µs and the mean is 5.01 µs (transcript 14), so the counter run is 13.6% faster. The card still uses the counter run, because that is where the bandwidth and matrix-core rows come from.
+
+Stall repro, runs/2026-11-04/stall/out/results.txt. Same counters, kernel filter matching nothing, then a host copy.
+  1,000, 2,000, 5,000, and 10,000 launches finish.
+  20,000, 30,000, 60,000, and 100,000 hang at the host wait. The harness kills them (rc=137).
+  300,000 (burst_300000): pass 1 printed "d2h ok" and wrote rocprof/pmc_1 (kernel trace, 300,004 lines). Pass 2 printed "launched 300000" and the harness killed it at 150s, before "d2h ok". Log: runs/2026-11-04/stall/out/burst_300000/log.
+  At 60,000 launches, AMD_SERIALIZE_KERNEL=3, HIP_LAUNCH_BLOCKING=1, and a synchronize() every 1,000 launches finish. One synchronize() just before the copy hangs. A kernel trace with no counters finishes.
+
+Thread trace, run geak_att. rocprofv3 --kernel-trace --att --att-target-cu 1, kernel ^_fw_skmm_kernel$, iterations [300-305]. Summary: runs/2026-11-04/geak_att_summary.txt.
+  K=3072, code object 117, 6 dispatches, 24 static MFMA: s_waitcnt 60.2% of traced cycles, 76.1% of stall cycles, MFMA 1.9% of traced cycles.
+  K=4096, code object 121, 6 dispatches, 32 static MFMA: s_waitcnt 67.7% of traced cycles, 88.0% of stall cycles, MFMA 2.6% of traced cycles.
+  The post's table rounds the traced-cycle shares to 60% and 68%.

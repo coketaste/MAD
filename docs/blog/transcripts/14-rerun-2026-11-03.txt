@@ -1,0 +1,58 @@
+2026-11-03 reruns. The cited latency table stays transcript 05 (fam-latency-5, 2026-11-02). This file is the later evidence the post adds beside that table, plus the operator, smoke, and CAE numbers the post cites.
+
+One container, four arms, three interleaved rounds. Run r3-latency. Device AMD Instinct MI350X, torch 2.11.0+rocm7.14.0.
+
+  round 1  eager 224.561  compile 90.277  geak 25.209  geak@2 9.823
+  round 2  eager 219.367  compile 85.677  geak 25.419  geak@2 9.823
+  round 3  eager 220.015  compile 94.957  geak 25.252  geak@2 9.847
+
+Medians, also in runs/2026-11-03/latency/perf_fam_latency.csv:
+  eager 220.0150 ms, compile 90.2767 ms, geak 25.2517 ms, geak@2 9.8227 ms.
+Each is within 2% of the cited median in docs/blog/results/perf_fam_latency.csv.
+Compile spread (max − min) / median:
+  (94.95702851563692 − 85.67708521150053) / 90.276672039181 = 10.28%.
+docs/blog/results/perf_fam_latency.csv is still the cited run. This file does not replace it.
+
+Sweep day 2, one cell per arm. Runs r3-sweep_eager, r3-sweep_compile, r3-sweep_geak, r3-sweep_geak2.
+  eager    performance: 220.8598 ms
+  compile  performance: 90.6426 ms
+  geak     performance: 24.5373 ms
+  geak@2   performance: 9.9039 ms
+Day 1 is transcript 06. The post's sweep table rounds both compile cells to 90.64.
+
+Eager operator profile, run r3-eager_operator. Trace libkineto_trace_1241. The performance line is under the profiler and is not a score.
+ops_summary_by_category.csv, share of kernel time:
+  elementwise 50.78%
+  GEMM        24.58%
+  reduce       8.23%
+  SDPA_fwd     7.75%
+  NORM_fwd     3.63%
+  other        3.04%
+  CONV_fwd     1.98%
+gpu_timeline.csv: idle 70.33%, computation 29.62%, window 1999.9 ms.
+Transcript 07 is the 2026-11-02 capture (elementwise 49.91%, idle 67.40%). The post's table is this run.
+
+figures/numbers.json is written by docs/blog/figures/make_figures.py from the 2026-11-02 CSVs in docs/blog/results/. Its smoke_geak2 of 1.0 is that day's smoke. No figure reads it. The post's smoke table is the run below.
+
+Eager dispatch rank, run r3-eager_rank, runs/2026-11-03/eager_rank/kernel_rank.json:
+  1,720,495 dispatches. Top kernel, the hipBLASLt MT16x32x512 GEMM: 8.6% of GPU kernel time, 97,500 launches, mean 7.46 µs.
+  On that kernel's dispatch trace the median is 7.44 µs and the mean is 7.464 µs (97,500 launches).
+
+Warm GEAK rank, run r3-geak_rank, runs/2026-11-03/geak_rank/kernel_rank.json:
+  340,154 dispatches. The section 6 table matches the first eight rows. 5.01 µs is the mean.
+  On _fw_skmm_kernel's dispatch trace the median is 5.00 µs and the mean is 5.011 µs (58,680 launches).
+
+Smokes, one trial of 40 tasks.
+  r3-smoke_eager   performance: 1.0000 success_rate   40/40
+  r3-smoke_geak2   performance: 0.9750 success_rate   39/40
+  The miss is libero_goal task 3 (0/1). spatial, object, and libero_10 are 10/10.
+Earlier pairs, both arms 40/40:
+  2026-11-01  fam-smoke-eager and fam-smoke-geak2, performance 1.0000 success_rate
+  2026-11-02  rerun-smoke-eager and rerun-smoke-geak2, transcript 12
+
+CAE-FastWAM, 10 denoising steps, compile on, one sample a day.
+  2026-11-01  fam-cae-latency   performance: 13.5792 ms
+  2026-11-02  rerun-cae         performance: 13.5933 ms   (docs/blog/results/perf_rerun_cae.csv, transcript 12)
+  2026-11-03  r3-cae            performance: 13.6415 ms
+
+Rollout, run r3-rollout: eight episodes, all 1/1, performance 1.0000 success_rate. Transcript 13.
