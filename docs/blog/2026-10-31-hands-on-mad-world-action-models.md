@@ -249,6 +249,8 @@ No kernel dominates. The top one, `_fw_skmm_kernel`, is a split-K matrix multipl
 
 ![_fw_skmm_kernel reaches 28.3% of peak bandwidth and 2.2% of peak matrix-core throughput.](figures/kernel-bound.svg)
 
+The bandwidth and matrix-core rows are rocprofv3 hardware counters. The wait row is rocprofv3 PC sampling of the running kernel. The assembly listing is a third view: it disassembles the code object that the counter run kept, which is the compiled GPU kernel. `rocprofv3 --att` is the mode that collects both pieces in one GPU run, a per-instruction trace and a `.out` code object. This post did not use `--att`.
+
 The kernel moves data far faster than it computes, and it spends most of its time waiting for memory. More matrix-core work would not help. The published 9.2× came from cutting launches and data movement across the model. What is left for a further edit is the same kind of change at a smaller scale: fewer bytes, or folding the separate reduction launch into the multiply. Retuning the tile of this one kernel cannot repeat the 9×.
 
 **Prompt, dispatch depth**
@@ -275,6 +277,10 @@ A kernel or setting that is faster in isolation does not always make the model f
 - lower median latency wins, and
 - the improvement beats the larger spread of the two sides and a 1% floor.
 
+`mad-tune-search` walks one model down the solid boxes. TraceLens, rocm-trace-lite, and rocprofv3 each run alone. Assembly reads the compiled kernel the rocprofv3 step kept. It does not launch the GPU again, and it is not `rocprofv3 --att`. The dashed box is `mad-optimize`, a separate workflow that takes the kernel card and asks GEAK to edit that kernel. A Primus projection step exists too, and it stays off unless `--expect` is set. This post does not use it.
+
+![mad-tune-search: baseline, then TraceLens, rocm-trace-lite, and rocprofv3. Assembly is the compiled kernel that the rocprofv3 run kept. The workflow proposes one lever, measures it cleanly, and keeps a config only when the gate passes. mad-optimize is the separate workflow that hands the kernel card to GEAK.](figures/tune-search.svg)
+
 Two changes went through that rule.
 
 **A GEAK kernel patch (`mad-optimize`, budget 1).** `mad-optimize` handed `_fw_skmm_kernel` to GEAK with one attempt. GEAK retuned two defaults: the split-K reduction and the tile size for the K=4096 shape. On its own kernel test, the kernel went from 5.150 µs to 4.959 µs, a 1.04× speedup. Then the whole model was measured twice with the shipped tree, and twice with the patched tree mounted in its place, under `mad-optimize`'s keep rule:
@@ -288,7 +294,7 @@ Two changes went through that rule.
 
 The gate does not keep the patch. The two patched samples are 24.79 ms and 35.88 ms, so their median is not evidence that the model got slower. The better sample is 0.16% under the shipped median, inside the 1% floor, and the other sample is far outside the shipped spread. With two samples the only supported result is "not kept."
 
-That result also matches the kernel card. `_fw_skmm_kernel` is 14.6% of GPU kernel time, so a 4% gain on it is worth about 0.5% of GPU kernel time at most. A later attempt has to cut launches or bytes, for example by folding the separate reduction into the multiply. Another pass over the same tile defaults would be the change this gate already refused.
+That result also matches the kernel card. `_fw_skmm_kernel` is 14.6% of GPU kernel time, so a 3.7% gain on it is worth about 0.5% of GPU kernel time at most. A later attempt has to cut launches or bytes, for example by folding the separate reduction into the multiply. Another pass over the same tile defaults would be the change this gate already refused.
 
 **A GEMM setting (`mad-tune-search`).** In plan mode, `mad-tune-search` proposed `PYTORCH_TUNABLEOP_ENABLED=1`, which lets PyTorch pick among rocBLAS GEMM implementations. It changes no tracked file. On the GEAK arm, two clean baseline runs measured 24.90 and 24.93 ms. The tuning run measured 25.29 ms and wrote no results file, and the one clean candidate run measured 25.00 ms. TunableOp is not kept. The GEAK tree's hot matrix multiplies are its own Triton kernels, which TunableOp does not touch.
 
@@ -387,7 +393,7 @@ Mount the weights the same way as the latency run. Report the performance line. 
 - The smokes run one trial per task. They check that the 2-step arm still finishes tasks. They are not the published 11-run LIBERO evaluation, and they do not establish accuracy parity.
 - The patched-model samples in section 7 are 24.79 ms and 35.88 ms. The run does not show why they differ. With two samples, the result is "not kept." It is not a measured slowdown.
 - Hardware-counter collection on the eager arm did not finish: the GPU went idle while the host waited. PC sampling finished and ranked the same hipBLASLt GEMM first.
-- The assembly view found two compiled variants of `_fw_skmm_kernel` with the same register count, so it does not attribute the kernel card to either one.
+- Disassembling the code objects kept by the rocprofv3 counter run found two compiled variants of `_fw_skmm_kernel` with the same register count, so that listing does not say which variant the kernel card measured. This post did not run `rocprofv3 --att`.
 
 ## Setup
 

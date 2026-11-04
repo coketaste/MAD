@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="820" viewBox="0 0 720 820" role="img" aria-label="mad-tune-search descends from a clean baseline through TraceLens, rocm-trace-lite, and rocprofv3. Assembly reads the compiled kernel that the rocprofv3 run kept. mad-optimize is a separate workflow that hands the kernel card to GEAK.">
+<title>mad-tune-search, then mad-optimize</title>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6" fill="#c45911"/></marker></defs>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<style>text{font-family:sans-serif;fill:#1a1a1a} .muted{fill:#555}</style>
+<text x="16" y="28" font-size="16" font-weight="600">mad-tune-search</text>
+<text x="16" y="48" font-size="13" class="muted">One profiler per run. GEAK is a separate workflow.</text>
+<rect x="170" y="64" width="380" height="64" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5"/>
+<text x="360" y="90" font-size="15" text-anchor="middle">baseline</text>
+<text x="360" y="110" font-size="13" text-anchor="middle" class="muted">clean runs, no profiler</text>
+<rect x="170" y="148" width="380" height="64" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5"/>
+<text x="360" y="174" font-size="15" text-anchor="middle">operator</text>
+<text x="360" y="194" font-size="13" text-anchor="middle" class="muted">TraceLens</text>
+<rect x="170" y="232" width="380" height="64" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5"/>
+<text x="360" y="258" font-size="15" text-anchor="middle">dispatch</text>
+<text x="360" y="278" font-size="13" text-anchor="middle" class="muted">rocm-trace-lite</text>
+<rect x="170" y="316" width="380" height="64" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5"/>
+<text x="360" y="342" font-size="15" text-anchor="middle">kernel</text>
+<text x="360" y="362" font-size="13" text-anchor="middle" class="muted">rocprofv3, then a kernel card</text>
+<rect x="170" y="400" width="380" height="64" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5"/>
+<text x="360" y="426" font-size="15" text-anchor="middle">assembly</text>
+<text x="360" y="446" font-size="13" text-anchor="middle" class="muted">compiled kernel from the rocprofv3 run</text>
+<rect x="170" y="484" width="380" height="64" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5"/>
+<text x="360" y="510" font-size="15" text-anchor="middle">propose</text>
+<text x="360" y="530" font-size="13" text-anchor="middle" class="muted">one lever from that evidence</text>
+<rect x="170" y="568" width="380" height="64" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5"/>
+<text x="360" y="594" font-size="15" text-anchor="middle">evaluate</text>
+<text x="360" y="614" font-size="13" text-anchor="middle" class="muted">clean repeats, then the gate</text>
+<rect x="170" y="652" width="380" height="64" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5"/>
+<text x="360" y="678" font-size="15" text-anchor="middle">synthesize</text>
+<text x="360" y="698" font-size="13" text-anchor="middle" class="muted">the config the gate kept</text>
+<rect x="170" y="740" width="380" height="64" rx="8" fill="#f4f7fb" stroke="#1f4e79" stroke-width="1.5" stroke-dasharray="5 4"/>
+<text x="360" y="766" font-size="15" text-anchor="middle">mad-optimize</text>
+<text x="360" y="786" font-size="13" text-anchor="middle" class="muted">GEAK, separate workflow</text>
+<line x1="360" y1="128" x2="360" y2="148" stroke="#c45911" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="360" y1="212" x2="360" y2="232" stroke="#c45911" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="360" y1="296" x2="360" y2="316" stroke="#c45911" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="360" y1="380" x2="360" y2="400" stroke="#c45911" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="360" y1="464" x2="360" y2="484" stroke="#c45911" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="360" y1="548" x2="360" y2="568" stroke="#c45911" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="360" y1="632" x2="360" y2="652" stroke="#c45911" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="360" y1="716" x2="360" y2="740" stroke="#c45911" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+</svg>
