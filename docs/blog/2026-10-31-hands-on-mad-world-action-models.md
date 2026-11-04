@@ -61,6 +61,8 @@ The sweep runs each arm as its own cell. It ran on two days, and both runs agree
 | GEAK | 24.90 | 24.67 | 24.54 |
 | GEAK at 2 steps | 9.93 | 9.89 | 9.90 |
 
+A later one-container run, on 2026-11-03, timed the four arms together the same way as the cited table. Its medians were 220.02, 90.28, 25.25, and 9.82 ms, each within 2% of the cited median. Its compile rounds spread 10.28%, from 85.68 ms to 94.96 ms. The cited table's compile spread is 2.21%.
+
 On this GPU, GEAK is 3.57× faster than `torch.compile`. The published MI355X comparison is in the same band: `torch.compile` is 1.6–2.6× over eager, and the shipped GEAK tree is 3.7× faster than that compiled path. The published absolute times, on an MI355X, are 222.55 ms eager, 24.17 ms GEAK, and 9.59 ms at 2 steps. The MI350X medians above sit next to those figures. The two machines are not the same measurement, and the post does not treat the small gap between them as a result.
 
 That speedup belongs to the kernel tree `faster-action-models` ships. The published write-up attributes it to HIP graph replay, wider projections, less dispatch and data movement, and a fixed-shape VAE, not to one kernel edit. MAD's part is a measurement anyone can repeat.
@@ -141,21 +143,7 @@ $ python3 tools/validation/model_config_validator.py --model pyt_fam_fastwam_lat
 
 The GPU is idle for 70% of that window. Eager mode issues many small kernels, one PyTorch operation at a time, and the GPU waits for the host in between. The dispatch depth agrees: no single kernel takes more than 8.6% of eager GPU time. The top kernel is a hipBLASLt GEMM, followed by a mean reduction, an elementwise multiply, and attention, each near 8%. The latency ladder above is what that wait costs once `torch.compile` or the shipped GEAK tree is used.
 
-**The top eager kernel, measured inside the model.** rocprofv3 hardware-counter collection first hung the eager arm. The run stopped at the GPU-to-CPU copy at the end of an inference, with the GPU idle. It stopped the same way when the kernel filter matched no kernel at all, and with the SDMA copy engine turned off (`HSA_ENABLE_SDMA=0`). The same eager run finishes under a rocprofv3 kernel trace and under PC sampling, and the GEAK arm finishes under counters.
-
-The model is not needed to reproduce it. A script that launches tiny kernels on one stream and then copies a tensor to the CPU hangs under the same counters, with a kernel filter that matches nothing. Up to 10,000 launches finish. Runs of 20,000, 30,000, 60,000 and 100,000 hang. One run of 300,000 did get through its first counter pass, so launch count is not a clean threshold. A single `torch.cuda.synchronize()` before the copy hangs too, so the copy is not the cause. Three changes let the 60,000-launch script finish: `AMD_SERIALIZE_KERNEL=3`, `HIP_LAUNCH_BLOCKING=1`, and a `synchronize()` every 1,000 launches. A kernel trace without counters finishes. The pattern is a host wait on a deep queue of small dispatches while counters are on. The eager arm launches tens of thousands of small kernels per inference. The root cause, in rocprofiler-sdk or the HSA runtime, is not identified.
-
-With `AMD_SERIALIZE_KERNEL=3`, which makes the host wait after every launch, the eager arm finishes all five counter passes. `kernel-tools.py context --serialize` sets it. The original configuration, 25 warm-up and 40 timed inferences, took about 11 minutes to finish. Before the change it ran for more than 30 minutes without producing a counter file, and was stopped by hand. The kernel's duration under counters, 7.16 µs, is 4% below the 7.46 µs in the model's kernel trace.
-
-```text
-python3 .claude/skills/mad-common/kernel-tools.py context --mode counters --group compute --serialize \
-  --kernel '^Cijk_Alik_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT16x32x512_.*_SK5_' \
-  --run-dir <run-dir> --context '<weights mount>'
-madengine run --tags pyt_fam_fastwam_eager --additional-context-file <run-dir>/context.json
-python3 .claude/skills/mad-common/kernel-tools.py card --run-dir <run-dir>
-```
-
-The in-model card comes from a short run, one warm-up inference and one timed one, which profiled 3,000 dispatches of the kernel across the five passes. The kernel serves two `F.linear` shapes, both bf16 with bias: 32×1024 by 1024×3072, and 32×1024 by 1024×4096. The right-hand column is the same kernel replayed outside the model, described below:
+**The top eager kernel, measured inside the model.** The kernel serves two `F.linear` shapes, both bf16 with bias: 32×1024 by 1024×3072, and 32×1024 by 1024×4096. The card is a short run, one warm-up inference and one timed one, 3,000 dispatches across the five counter passes. Its duration is the median of those launches, 7.16 µs, 3.8% below the 7.44 µs median of the same kernel in the model's kernel trace. The trace mean is 7.46 µs. The right-hand column replays the kernel outside the model, and that replay's median, 7.44 µs, matches the trace median. The script is in the appendix.
 
 | | top eager GEMM, in the model | replayed outside the model |
 |---|---|---|
@@ -165,41 +153,19 @@ The in-model card comes from a short run, one warm-up inference and one timed on
 | achieved matrix-core throughput | 1.3% of peak | 1.2% of peak |
 | bound | bandwidth | bandwidth |
 
-The full 65-inference run profiled 97,500 dispatches and gave the same 7.16 µs and 13.2% bandwidth. Its mean matrix-core share is 3.3%, because about one dispatch in five reported a larger matrix-operation count than the rest, more than 100 times larger in the worst cases. The wave count is exact on every dispatch, so the cause is not extra waves, and it is not identified. Taking the median per launch shape instead of the mean gives back 1.3%. The post uses the short run, where every dispatch agrees.
-
 The card's rule labels a kernel latency-bound only when both rows are under 10% of peak, so 13.2% puts this GEMM just on the bandwidth side of that line. With only 32 rows, the multiply cannot fill the GPU: each launch has at most one workgroup per compute unit, and finishes in a few microseconds. Speeding up this one GEMM would not change the picture much. Fusing operations and replaying them as graphs, which `torch.compile` and the GEAK tree do, removes the gaps between launches.
 
-**The replay, as a cross-check.** Before serialization worked, this script was the only way to get counters for the kernel. It calls the two shapes in the model's 4:1 ratio and rotates through 80 weight tensors, 512 MB in all, which is more than the GPU's 256 MB last-level cache holds. hipBLASLt picks the same kernel, with an identical name. It ran by hand, with the same compute counter group the kernel depth uses. The first loop warms the GPU. The card averages every launch from both loops:
-
-```python
-# gemm_iso.py
-import torch
-import torch.nn.functional as F
-
-bf = dict(device="cuda", dtype=torch.bfloat16)
-x = torch.randn(32, 1024, **bf)
-w3 = [(torch.randn(3072, 1024, **bf), torch.randn(3072, **bf)) for _ in range(64)]
-w4 = [(torch.randn(4096, 1024, **bf), torch.randn(4096, **bf)) for _ in range(16)]
-
-def step(i):
-    for j in range(4):
-        F.linear(x, *w3[(4 * i + j) % 64])
-    F.linear(x, *w4[i % 16])
-
-for i in range(50):
-    step(i)
-torch.cuda.synchronize()
-for i in range(600):
-    step(i)
-torch.cuda.synchronize()
-```
+Counter collection on this arm finishes when launches are serialized. Without that, the run stops at the GPU-to-CPU copy at the end of an inference, GPU idle, including with a kernel filter that matches nothing and with `HSA_ENABLE_SDMA=0`. A kernel trace and PC sampling finish, and the GEAK arm finishes under the same counters. A small script reproduces the hang: tens of thousands of tiny launches, then a host wait, under counters. `AMD_SERIALIZE_KERNEL=3` makes the host wait after every launch, and `kernel-tools.py context --serialize` sets it. With that set, the original configuration, 25 warm-up and 40 timed inferences, finished in about 11 minutes. Before the change it ran for more than 30 minutes and wrote no counter file. The root cause, in rocprofiler-sdk or the HSA runtime, is still open. The launch counts are in the appendix.
 
 ```text
-rocprofv3 --kernel-trace -i counters.txt \
-  --kernel-include-regex '^Cijk_Alik_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT16x32x512_.*_SK5_' \
-  -d <run-dir>/rocprof/counters -- python3 gemm_iso.py
+python3 .claude/skills/mad-common/kernel-tools.py context --mode counters --group compute --serialize \
+  --kernel '^Cijk_Alik_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT16x32x512_.*_SK5_' \
+  --run-dir <run-dir> --context '<weights mount>'
+madengine run --tags pyt_fam_fastwam_eager --additional-context-file <run-dir>/context.json
 python3 .claude/skills/mad-common/kernel-tools.py card --run-dir <run-dir>
 ```
+
+The same 65-inference run profiled 97,500 dispatches and gave the same 7.16 µs and 13.2% bandwidth. Its mean matrix-core share reads 3.3%, because about one dispatch in five reported a larger matrix-operation count than the rest. The wave count is exact on every dispatch. The median per launch shape is 1.3%, the short run's number, so the card above is the short run.
 
 A run under a profiler is slower than a clean run, so its `performance:` line is evidence, not a score. That holds for every profiled run in this post.
 
@@ -230,7 +196,7 @@ The GEAK arm is already about 9× faster than eager. The next question is which 
 
 No kernel dominates. The top one, `_fw_skmm_kernel`, is a split-K matrix multiply: it splits the long inner dimension across workgroups, and a second kernel adds the partial results.
 
-**Why that kernel is slow.** The kernel depth collects hardware counters for that one kernel and reduces them to a kernel card. The 4.32 µs below is the mean launch time while those counters are on. The 5.01 µs in the table above is the mean of the same kernel in the kernel trace, with no counters. The card uses the counter run:
+**Why that kernel is slow.** The kernel depth collects hardware counters for that one kernel and reduces them to a kernel card. The card's duration is the median launch time. Under counters that median is 4.32 µs. In the kernel trace, with no counters, the same kernel's median is 5.00 µs and its mean is the 5.01 µs in the table above, so the counter run is 13.6% faster. The bandwidth and matrix-core rows come from the counter run, so the card uses that run:
 
 | | `_fw_skmm_kernel` |
 |---|---|
@@ -246,14 +212,12 @@ The bandwidth and matrix-core rows are rocprofv3 hardware counters. The wait row
 
 The name `_fw_skmm_kernel` covers two compiled variants, one for each K shape. The counter run measured both: 39,120 launches of the K=3072 variant and 19,560 of the K=4096 variant, a 2:1 split. The card is their launch-weighted average. Its 26.7 matrix instructions per wave is (2 × 24 + 32) / 3, the variants' counts weighted 2:1, rounded to one decimal. The assembly listing has 240 instructions for K=3072 and 289 for K=4096, with 24 and 32 matrix instructions.
 
-A rocprofv3 thread trace (`--att`) shows each variant instruction by instruction. It traced six launches of each on one compute unit, over kernel iterations `[300-305]`, and saved the code object each launch ran. Both saved code objects are byte-identical to the Triton builds the assembly listing disassembled. `/mad-profile <tag> thread_trace` runs these flags through the profiler shim:
+A rocprofv3 thread trace (`--att`) shows each variant instruction by instruction. It traced six launches of each on one compute unit, over kernel iterations `[300-305]`, and saved the code object each launch ran. Both saved code objects are byte-identical to the Triton builds the assembly listing disassembled. `/mad-profile <tag> thread_trace` runs these flags through the profiler shim. The table below came from these flags, run by hand before the skill had this depth:
 
 ```text
 rocprofv3 --kernel-trace --att --att-target-cu 1 \
   --kernel-include-regex '^_fw_skmm_kernel$' --kernel-iteration-range '[300-305]'
 ```
-
-That run is the table below.
 
 | | K=3072 (2/3 of launches) | K=4096 (1/3 of launches) |
 |---|---:|---:|
@@ -289,9 +253,9 @@ A kernel or setting that is faster in isolation does not always make the model f
 
 Two changes went through that rule.
 
-**A GEAK kernel patch (`mad-optimize`, budget 1).** `mad-optimize` handed `_fw_skmm_kernel` to GEAK with one attempt. GEAK retuned two defaults: the split-K reduction and the tile size for the K=4096 shape. On its own kernel test, the kernel went from 5.150 µs to 4.959 µs, a 1.0378× speedup. Then the whole model was measured twice with the shipped tree, and twice with the patched tree mounted in its place, under `mad-optimize`'s keep rule:
+**A GEAK kernel patch (`mad-optimize`, budget 1).** `mad-optimize` handed `_fw_skmm_kernel` to GEAK with one attempt. GEAK retuned two defaults: the split-K reduction and the tile size for the K=4096 shape. On its own kernel test, the geometric mean over the two K shapes went from 5.150 µs to 4.959 µs. The 1.0378× is the geometric mean of the per-shape speedups, 1.0476× at K=3072 and 1.0282× at K=4096. Then the whole model was measured twice with the shipped tree, and twice with the patched tree mounted in its place, under `mad-optimize`'s keep rule:
 
-![Budget 1. The kernel test is 1.0378×. One patched model sample matches the shipped tree and the other is 35.88 ms, so the two samples do not clear the keep rule.](figures/optimize-budget.svg)
+![Budget 1. The kernel test is 1.0378×, the geometric mean of the two shapes. One patched model sample matches the shipped tree and the other is 35.88 ms, so the two samples do not clear the keep rule.](figures/optimize-budget.svg)
 
 | tree | samples (ms) | median (ms) |
 |---|---|---:|
@@ -302,9 +266,11 @@ The gate does not keep the patch. Each sample is itself a median of 40 iteration
 
 That result also matches the kernel card. `_fw_skmm_kernel` is 14.6% of GPU kernel time, so a 3.7% gain on it is worth about 0.5% of GPU kernel time at most. A later attempt has to cut launches or bytes, for example by folding the separate reduction into the multiply. Another pass over the same tile defaults would be the change this gate already refused.
 
-**A GEMM setting (`mad-tune-search`).** In plan mode, `mad-tune-search` proposed `PYTORCH_TUNABLEOP_ENABLED=1`, which lets PyTorch time rocBLAS and hipBLASLt GEMM solutions and pick the fastest. It changes no tracked file. On the GEAK arm, two clean baseline runs measured 24.90 and 24.93 ms. The tuning run measured 25.29 ms and wrote no results file, and the one clean candidate run measured 25.00 ms. TunableOp is not kept. The GEAK tree's hot matrix multiplies are its own Triton kernels, which TunableOp does not touch.
+**A GEMM setting (`mad-tune-search`).** In plan mode, `mad-tune-search` proposed `PYTORCH_TUNABLEOP_ENABLED=1`, which lets PyTorch time rocBLAS and hipBLASLt GEMM solutions and pick the fastest. It changes no tracked file. On the GEAK arm, two clean baseline runs measured 24.90 and 24.93 ms. The tuning run measured 25.29 ms and wrote no results file. One candidate run failed in Inductor (`CantSplit: 640 not divisible by 392`) before it printed a performance line, and the other measured 25.00 ms. With one candidate sample, the keep rule does not have the two samples it requires, so TunableOp is not kept.
 
-One measurement tip from that run: `madengine run -m <manifest>` reuses profiling tools a previous run saved into the same manifest. Pass `"tools": []` in the additional context for a clean measurement.
+An earlier clean attempt on 2026-11-01 did clear the numeric gate. The baselines were 25.08 and 25.51 ms (spread 1.72%), and the TunableOp samples were 24.56 and 24.87 ms, 2.29% faster. Both samples sit inside that day's unmodified GEAK results, 24.43 ms to 25.51 ms, so that attempt is not kept either. The GEAK tree's hot matrix multiplies are its own Triton kernels, which TunableOp does not touch.
+
+One measurement tip from these tuning runs: `madengine run -m <manifest>` reuses profiling tools a previous run saved into the same manifest. Pass `"tools": []` in the additional context for a clean measurement.
 
 **Prompt: plan the optimization, without spending the budget**
 
@@ -327,7 +293,7 @@ Fewer denoising steps are only useful if the robot still succeeds. These smokes 
 | eager | 10/10 | 10/10 | 10/10 | 10/10 | 1.000 |
 | GEAK at 2 steps | 10/10 | 10/10 | 9/10 | 10/10 | 0.975 |
 
-The one miss was a goal-suite task. An earlier pair of smokes solved all 40 tasks on both arms. One miss in 40 single-trial episodes sits near the published 97% and does not measure a difference between the two arms.
+The one miss was a goal-suite task. Two earlier pairs, on 2026-11-01 and 2026-11-02, solved all 40 tasks on both arms. One miss in 40 single-trial episodes sits near the published 97% and does not measure a difference between the two arms.
 
 `pyt_fam_fastwam_rollout` saves frames from four tasks, one per suite, for both arms. All eight episodes succeeded. The top row is eager, and the bottom row is GEAK at 2 steps:
 
@@ -341,15 +307,15 @@ The one miss was a goal-suite task. An earlier pair of smokes solved all 40 task
 
 ## 9. A second checkpoint: CAE-FastWAM
 
-CAE-FastWAM (`amd/CAE-FastWAM`) is a different checkpoint, so it is its own model, `pyt_fam_cae_fastwam_latency`, not a fifth sweep cell. The run uses the `cae-fastwam` tree at 10 denoising steps with compile enabled. It measured 13.59 ms, and 13.64 ms on a second day, one sample each. The published MI355X figure for GEAK plus the Compact Action Expert at 10 steps is 12.82 ms, with 97.28% success over full LIBERO runs. These two samples are a latency check on a different GPU. They do not reproduce that success rate.
+CAE-FastWAM (`amd/CAE-FastWAM`) is a different checkpoint, so it is its own model, `pyt_fam_cae_fastwam_latency`, not a fifth sweep cell. The run uses the `cae-fastwam` tree at 10 denoising steps with compile enabled. It measured 13.58 ms, 13.59 ms, and 13.64 ms, one sample on each of three days. The published MI355X figure for GEAK plus the Compact Action Expert at 10 steps is 12.82 ms, with 97.28% success over full LIBERO runs. These three samples are a latency check on a different GPU. They do not reproduce that success rate.
 
 ## 10. Limitations
 
 - Everything ran on one GPU of a shared eight-GPU host. The cited latency table has three rounds per arm, and the sweep cells have one sample each.
 - The smokes run one trial per task. They check that the 2-step arm still finishes tasks. They are not the published 11-run LIBERO evaluation, and they do not establish accuracy parity.
 - The first patched sample is a median of 40 iterations that spread from 25.64 ms to a 90th percentile of 44.35 ms. The second sample's 90th percentile is 24.86 ms. The run does not show why the first sample spread. With two samples, the result is "not kept." It is not a measured slowdown.
-- rocprofv3 counter collection stalls the eager arm unless launches are serialized with `AMD_SERIALIZE_KERNEL=3`. That setting makes the host wait after every launch, so it changes how launches are paced, and the stall's root cause is not identified. The eager GEMM's counters now come from the model, and the replay outside the model agrees with them. On the 65-inference run, about one dispatch in five reported an inflated matrix-operation count, so the card uses the two-inference run.
-- The thread trace covers six launches of each `_fw_skmm_kernel` variant, kernel iterations `[300-305]`, on one compute unit. `/mad-profile <tag> thread_trace` runs that command when the iteration range is `[300-305]`. The depth's default range is `[1-8]`, the first few launches. rocprofv3 documents thread trace for MI200 and MI300; this run completed on gfx950. `mad-tune-search` and `mad-optimize` do not collect a thread trace.
+- The eager GEMM card is two inferences, 3,000 dispatches, collected with `AMD_SERIALIZE_KERNEL=3`. The 65-inference run inflated about one matrix-op count in five, so it is not the card.
+- The thread trace is six launches of each `_fw_skmm_kernel` variant, iterations `[300-305]`, on one compute unit. rocprofv3 documents that mode for MI200 and MI300; this run completed on gfx950.
 
 ## Setup
 
@@ -368,7 +334,7 @@ Related reading: [Optimizing World Action Models on AMD GPUs](https://rocm.blogs
 
 ## Appendix: prompts
 
-The sweep plan, the report, the kernel profile, and the mad-optimize plan are in the sections above. The rest are here, in the order of the post. Each one mounts the weights the same way as the latency run unless it says otherwise.
+The sweep plan, the report, the kernel profile, and the mad-optimize plan are in the sections above. The rest are here, in the order of the post. Each one mounts the weights the same way as the latency run unless it says otherwise. The eager counter checks that section 5 summarizes follow the eager profile.
 
 ### Explain the three layers
 
@@ -426,6 +392,52 @@ One run, through mad-run.sh. Mount the weights the same way as the latency run. 
 /mad-profile pyt_fam_fastwam_eager dispatch
 
 One run, through mad-run.sh. Mount the weights the same way as the latency run. Warm the code-object cache first, then take a rocprofv3 kernel trace and rank it with kernel-tools.py rank. The performance line is evidence, not a score. Report the kernel-time share from kernel_rank.json.
+```
+
+### Where the eager counter stall shows up
+
+A script that launches N tiny kernels on one stream, then copies a tensor to the CPU, under the same counters and a kernel filter that matches nothing:
+
+| launches | result |
+|---:|---|
+| 1,000 to 10,000 | finishes |
+| 20,000, 30,000, 60,000, 100,000 | hangs at the host wait, GPU idle |
+| 300,000 | first pass finished; the next pass hung |
+
+At 60,000 launches, `AMD_SERIALIZE_KERNEL=3`, `HIP_LAUNCH_BLOCKING=1`, and a `synchronize()` every 1,000 launches finish. One `synchronize()` just before the copy hangs. A kernel trace with no counters finishes. Launch count is not a clean threshold: the 300,000-launch run finished its first counter pass, then hung on the next one.
+
+### Replay the top eager GEMM
+
+This was the only counter source before serialization. It calls the two `F.linear` shapes in the model's 4:1 ratio and rotates through 80 weight tensors, 512 MB, more than the GPU's 256 MB last-level cache. hipBLASLt picks the same kernel, with an identical name. The first loop warms the GPU. The card averages every launch from both loops.
+
+```python
+# gemm_iso.py
+import torch
+import torch.nn.functional as F
+
+bf = dict(device="cuda", dtype=torch.bfloat16)
+x = torch.randn(32, 1024, **bf)
+w3 = [(torch.randn(3072, 1024, **bf), torch.randn(3072, **bf)) for _ in range(64)]
+w4 = [(torch.randn(4096, 1024, **bf), torch.randn(4096, **bf)) for _ in range(16)]
+
+def step(i):
+    for j in range(4):
+        F.linear(x, *w3[(4 * i + j) % 64])
+    F.linear(x, *w4[i % 16])
+
+for i in range(50):
+    step(i)
+torch.cuda.synchronize()
+for i in range(600):
+    step(i)
+torch.cuda.synchronize()
+```
+
+```text
+rocprofv3 --kernel-trace -i counters.txt \
+  --kernel-include-regex '^Cijk_Alik_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT16x32x512_.*_SK5_' \
+  -d <run-dir>/rocprof/counters -- python3 gemm_iso.py
+python3 .claude/skills/mad-common/kernel-tools.py card --run-dir <run-dir>
 ```
 
 ### Rank the warm GEAK dispatch
