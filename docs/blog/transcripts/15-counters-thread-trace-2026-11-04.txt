@@ -1,4 +1,4 @@
-2026-11-04. The post still cites the eager GEMM replay and the stall reproduction from this file. Its eager card and GEAK thread trace were replaced by the 2026-11-05 rerun in 16-rerun-r6-2026-11-05.txt. Card durations are medians. Counter totals in a card are means.
+2026-11-04. The post cited this file before the 2026-11-05 rerun in 16-rerun-r6-2026-11-05.txt replaced it. Card durations are medians. Counter totals in a card are means.
 
 Eager GEMM, short run. AMD_SERIALIZE_KERNEL=3. One warm-up inference and one timed inference, 3,000 dispatches across five counter passes.
   Source: /var/tmp/mad-kernel/2026-11-04/eager_counters_ser/kernel_card.json
