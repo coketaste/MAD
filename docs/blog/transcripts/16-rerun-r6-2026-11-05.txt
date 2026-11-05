@@ -1,0 +1,75 @@
+2026-11-05 rerun (r6). The post's numbers come from this rerun unless the post dates them otherwise.
+Host: smci350-rck-g03-b06-40, 8 x AMD Instinct MI350X (gfx950), 2 x AMD EPYC 9575F, torch 2.11.0+rocm7.14.0.
+Drivers: runs/r6/rerun.py (sequential) and runs/r6/lanes.py (one lane per GPU). Result files: docs/blog/results/r6/.
+Each lane had its own GPU (docker_gpus), the 16 cores and SMT siblings on that GPU's NUMA node (docker_cpus),
+its own copy of the repo, its own image tag, and its own mad-run.sh lock. A lane started a step only when no
+other user held GPU memory.
+
+Latency table. One container, four arms, three interleaved rounds, GPU 0, unpinned, nothing else on the node.
+Run r6-latency, runs/r6/latency/perf_fam_latency.csv:
+  round 1  eager 218.486  compile 90.262  geak 24.848  geak@2 10.041
+  round 2  eager 227.042  compile 94.789  geak 24.980  geak@2  9.990
+  round 3  eager 225.903  compile 88.426  geak 24.722  geak@2  9.952
+  medians  eager 225.903  compile 90.262  geak 24.848  geak@2  9.990
+  spread (max-min)/median: 3.79%, 7.05%, 1.04%, 0.89%
+  vs eager: compile 2.50x, geak 9.09x, geak@2 22.61x. geak vs compile 3.63x.
+
+Pinning A/B. The same four-arm run on GPU 0, nothing else on the node, alternating. Medians of three rounds (ms):
+  ab_unpinned_1  eager 226.91  compile 88.26  geak 24.53  geak@2 9.99
+  ab_pinned_1    eager 218.41  compile 86.31  geak 24.42  geak@2 9.84   docker_cpus 0-15,128-143
+  ab_unpinned_2  eager 224.45  compile 94.18  geak 24.86  geak@2 9.81
+  ab_pinned_2    eager 216.62  compile 86.89  geak 24.84  geak@2 9.80   docker_cpus 0-15,128-143
+  Keep rule, two samples a side, noise = max(spread unpinned, spread pinned, 1%):
+  eager 3.62% gain vs 1.09% noise, kept. compile 5.07% vs 6.49%, geak 0.28% vs 1.73%, geak@2 0.79% vs 1.79%, not kept.
+  The two unpinned runs are the post's agreement check for the latency table.
+
+Sweep workflow, mad-benchmark-sweep with execute true, claude -p, cells pinned to GPU 0's cores while six other
+lanes ran: eager 200.1313, compile 81.7178, geak 24.7136, geak2 9.7755 ms. Its first two attempts failed: the
+pre-flight agent appended "; echo EXIT=$?", which the headless permission rules refused. Commit de169d7 fixes the
+wording. A headless session also needs --allowedTools Workflow, or Workflow's review prompt refuses the call.
+Pinned per-arm cells on GPU 1 in a lane: compile 91.3590, geak 25.1781, geak2 9.7836 ms. Not cited.
+r6-latency_pinned on GPU 2: round 1 eager 203.538, compile 81.119 ms, then the GEAK arm failed with
+torch._inductor.exc.InductorError: CantSplit: 640 not divisible by 392.
+
+Eager operator profile, GPU 7 lane. TraceLens category share of kernel time, 2000 ms window:
+  elementwise 49.68%, GEMM 25.01%, reduce 8.56%, SDPA_fwd 8.10%, NORM_fwd 3.49%, other 3.09%, CONV_fwd 2.07%.
+  gpu_timeline: idle 66.80%, computation 33.15%.
+
+Eager dispatch rank, GPU 4 lane: 1,721,080 dispatches. Top: the hipBLASLt MT16x32x512 SK5 GEMM, 9.1%, 97,500
+launches, mean 7.51 us; trace median 7.12 us. Then the mean reduction 8.5%, attn_fwd 8.3%, the bf16 multiply 8.0%.
+Eager GEMM counter cards, AMD_SERIALIZE_KERNEL=3:
+  short harness: 3,000 dispatches, 7.16 us, 13.18% of peak bandwidth, 1.30% of peak MFMA, bound bandwidth.
+  65 inferences: 97,500 dispatches, 7.20 us, 13.11%, 1.29%, bound bandwidth, 9.0 minutes. No inflated counts.
+
+GEAK warm rank, GPU 5 lane: 335,680 dispatches.
+  _fw_skmm_kernel 14.8% 58,680 4.85 us | _fw_skpost_kernel 13.5% 57,376 4.53 us |
+  triton_tem_fused_add_addmm_mul_native_layer_norm_split_t_view_1 7.8% 19,560 7.64 us |
+  _fw_qrms_attn_kernel 7.6% 19,560 7.42 us | _fw_attn_kernel 7.4% 23,580 6.05 us |
+  triton_tem_fused_addmm_gelu_skpost_t_view_3 7.3% 19,560 7.13 us | _fw_pfsk_kernel 6.0% 8,040 14.36 us |
+  triton_tem_fused_addmm_t_view_2 5.4% 19,560 5.31 us
+  _fw_skmm_kernel trace median 4.80 us.
+GEAK kernel card: 58,680 dispatches (39,120 and 19,560 of the two variants), 4.32 us, 28.29% of 8.0 TB/s,
+  2.24% of peak MFMA, 22.88 FLOP/byte against a 288.4 ridge, 26.7 MFMA per wave, bound bandwidth.
+  Assembly: 240 and 289 instructions, 24 and 32 MFMA. PC sampling: s_waitcnt 66.6% of 79,315 samples.
+Thread trace, kernel-tools.py context --mode thread_trace, iterations [300-305], CU 1, 12 dispatches:
+  K=3072 (24 MFMA): s_waitcnt 59.6% of traced cycles, 75.8% of stall cycles, MFMA 2.0%; matches BKOK.._fw_skmm_kernel.hsaco
+  K=4096 (32 MFMA): s_waitcnt 66.7%, 86.3%, MFMA 2.6%; matches F4PU.._fw_skmm_kernel.hsaco
+
+TunableOp, GPU 1 lane, pinned, GEAK arm:
+  baseline 24.5004, 25.2346 ms. tuning run (TUNING=1) 24.8102 ms; /var/tmp/fam_cache/tunableop_results.csv not
+  created. candidates (ENABLED=1) 24.8658, 24.5246 ms. Gain 0.69% vs baseline spread 2.95%. Not kept.
+mad-tune-search plan (GPU-free, runs/r6/transcripts/15-tune-search-plan.txt): proposed fewer denoising steps and
+  flagged it itself; there is no kernel_rank.json in its run directory.
+
+mad-optimize budget 1, execute true, claude -p (runs/r6/transcripts/optimize_execute.txt): top kernel
+  _fw_skmm_kernel 14.3%; baseline 2 samples, median 24.9422 ms, spread 1.34%. GEAK's one round reported 1.0 on
+  every speedup and left geak_eval/final_patch.diff empty, so the workflow ended with status error and no gate.
+  A second budget-1 run was queued when this file was written.
+
+Smokes, one trial of 40 tasks: eager 0.925 (37/40; misses libero_spatial t9, libero_10 t6, libero_10 t7),
+  GEAK at 2 steps 1.000 (40/40). Rollouts: 8 of 8 episodes succeeded; figures/rollouts/ and rollout-*.png are
+  these frames. CAE-FastWAM: 13.6059 ms, one sample.
+
+GPU-free examples, runs/r6/transcripts/: preflight, validator (541 models in 20 registries), discover, the
+add-model walk to its duplicate check, the three-layer explanation, sweep plan (4 cells planned, 0 ran), and the
+unregistered pyt_fam_dit4dit cell (error: No models found corresponding to the given tag) all match the post.

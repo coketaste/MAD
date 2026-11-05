@@ -1,4 +1,4 @@
-2026-11-03 reruns. The cited latency table stays transcript 05 (fam-latency-5, 2026-11-02). This file is the later evidence the post adds beside that table, plus the operator, smoke, and CAE numbers the post cites.
+2026-11-03 reruns. The post cited them before the 2026-11-05 rerun in 16-rerun-r6-2026-11-05.txt replaced them.
 
 One container, four arms, three interleaved rounds. Run r3-latency. Device AMD Instinct MI350X, torch 2.11.0+rocm7.14.0.
 
@@ -11,14 +11,14 @@ Medians, also in runs/2026-11-03/latency/perf_fam_latency.csv:
 Each is within 2% of the cited median in docs/blog/results/perf_fam_latency.csv.
 Compile spread (max − min) / median:
   (94.95702851563692 − 85.67708521150053) / 90.276672039181 = 10.28%.
-docs/blog/results/perf_fam_latency.csv is still the cited run. This file does not replace it.
+docs/blog/results/perf_fam_latency.csv was the cited run at the time.
 
 Sweep day 2, one cell per arm. Runs r3-sweep_eager, r3-sweep_compile, r3-sweep_geak, r3-sweep_geak2.
   eager    performance: 220.8598 ms
   compile  performance: 90.6426 ms
   geak     performance: 24.5373 ms
   geak@2   performance: 9.9039 ms
-Day 1 is transcript 06. The post's sweep table rounds both compile cells to 90.64.
+Day 1 is transcript 06. The post's sweep table rounded both compile cells to 90.64.
 
 Eager operator profile, run r3-eager_operator. Trace libkineto_trace_1241. The performance line is under the profiler and is not a score.
 ops_summary_by_category.csv, share of kernel time:
@@ -30,9 +30,9 @@ ops_summary_by_category.csv, share of kernel time:
   other        3.04%
   CONV_fwd     1.98%
 gpu_timeline.csv: idle 70.33%, computation 29.62%, window 1999.9 ms.
-Transcript 07 is the 2026-11-02 capture (elementwise 49.91%, idle 67.40%). The post's table is this run.
+Transcript 07 is the 2026-11-02 capture (elementwise 49.91%, idle 67.40%). The post's table was this run.
 
-figures/numbers.json is written by docs/blog/figures/make_figures.py from the 2026-11-02 CSVs in docs/blog/results/. Its smoke_geak2 of 1.0 is that day's smoke. No figure reads it. The post's smoke table is the run below.
+figures/numbers.json is written by docs/blog/figures/make_figures.py from the 2026-11-02 CSVs in docs/blog/results/. Its smoke_geak2 of 1.0 is that day's smoke. No figure reads it. The post's smoke table was the run below.
 
 Eager dispatch rank, run r3-eager_rank, runs/2026-11-03/eager_rank/kernel_rank.json:
   1,720,495 dispatches. Top kernel, the hipBLASLt MT16x32x512 GEMM: 8.6% of GPU kernel time, 97,500 launches, mean 7.46 µs.

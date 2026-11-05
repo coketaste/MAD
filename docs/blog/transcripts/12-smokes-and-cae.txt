@@ -1,4 +1,4 @@
-The smoke table in the post is the 2026-11-03 rerun in 14-rerun-2026-11-03.txt. GEAK at 2 steps is 39/40 there. This file is the 2026-11-02 pair, 40/40 on both arms. The 2026-11-02 CAE sample below is the middle of the three days in the post.
+The smoke table and the CAE sample in the post are the 2026-11-05 rerun in 16-rerun-r6-2026-11-05.txt. This file is the 2026-11-02 pair, 40/40 on both arms, and that day's CAE sample.
 
 rerun-smoke-eager  MAD_RUN_STATUS=succeeded
   smoke eager: 40/40 episodes

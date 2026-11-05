@@ -1,0 +1,70 @@
+{
+  "arch": "gfx950",
+  "peaks": {
+    "product": "AMD Instinct MI350X",
+    "hbm_tbps": 8.0,
+    "bf16_tflops": 2306.9,
+    "source": "public spec sheet"
+  },
+  "kernels": [
+    {
+      "kernel": "_fw_skmm_kernel",
+      "dispatches_profiled": 58680,
+      "duration_us": 4.32,
+      "grid": 32768.0,
+      "workgroup": 128.0,
+      "vgpr": 92.0,
+      "agpr": 4.0,
+      "sgpr": 32.0,
+      "lds_bytes": 0.0,
+      "scratch_bytes": 0.0,
+      "counters": {
+        "FETCH_SIZE": 8522.9,
+        "GRBM_GUI_ACTIVE": 199042.0,
+        "SQ_ACTIVE_INST_VALU": 37717.3,
+        "SQ_BUSY_CYCLES": 234314.4,
+        "SQ_INSTS_LDS": 34133.3,
+        "SQ_INSTS_MFMA": 13653.3,
+        "SQ_INSTS_SALU": 16554.7,
+        "SQ_INSTS_SMEM": 0.0,
+        "SQ_INSTS_VALU": 37717.3,
+        "SQ_INSTS_VALU_MFMA_MOPS_BF16": 436906.7,
+        "SQ_INSTS_VALU_MFMA_MOPS_F16": 0.0,
+        "SQ_INSTS_VALU_MFMA_MOPS_F32": 0.0,
+        "SQ_INSTS_VMEM_RD": 13653.3,
+        "SQ_INSTS_VMEM_WR": 1024.0,
+        "SQ_LDS_BANK_CONFLICT": 0.0,
+        "SQ_LDS_IDX_ACTIVE": 191146.7,
+        "SQ_VALU_MFMA_BUSY_CYCLES": 218453.3,
+        "SQ_WAIT_ANY": 664451.8,
+        "SQ_WAIT_INST_ANY": 41870.3,
+        "SQ_WAVES": 512.0,
+        "SQ_WAVE_CYCLES": 867431.5,
+        "WRITE_SIZE": 1024.0
+      },
+      "bytes": 9776061.045398774,
+      "mfma_flops": 223696213.33333334,
+      "achieved_tbps": 2.263,
+      "pct_peak_bandwidth": 28.29,
+      "achieved_mfma_tflops": 51.78,
+      "pct_peak_mfma": 2.24,
+      "flops_per_byte": 22.88,
+      "ridge_flops_per_byte": 288.4,
+      "per_wave": {
+        "lds": 66.7,
+        "mfma": 26.7,
+        "salu": 32.3,
+        "smem": 0.0,
+        "valu": 73.7,
+        "vmem_rd": 26.7,
+        "vmem_wr": 2.0
+      },
+      "wait_share": 0.766,
+      "lds_bank_conflict_ratio": 0.0,
+      "bound": "bandwidth",
+      "bound_reason": "28.3% of peak bandwidth against 2.2% of peak MFMA",
+      "total_us": 253497.6,
+      "variants_with_this_name": 1
+    }
+  ]
+}

@@ -1,3 +1,5 @@
+The post's latency table is now the 2026-11-05 run in 16-rerun-r6-2026-11-05.txt. This file is the 2026-11-02 table it replaced.
+
 Rerun on 2026-11-02. The first attempt, fam-latency-4, failed before the model ran:
 docker pull of rocm/pytorch:rocm7.14_ubuntu24.04_py3.12_pytorch_release_2.11.0
 returned 401 (Docker Hub token expired). The image was already on the host, so

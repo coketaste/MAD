@@ -1,4 +1,4 @@
-2026-11-04. The eager GEMM card the post cites, the isolated replay, the stall repro, and the GEAK thread trace. Card durations are medians. Counter totals in a card are means.
+2026-11-04. The post still cites the eager GEMM replay and the stall reproduction from this file. Its eager card and GEAK thread trace were replaced by the 2026-11-05 rerun in 16-rerun-r6-2026-11-05.txt. Card durations are medians. Counter totals in a card are means.
 
 Eager GEMM, short run. AMD_SERIALIZE_KERNEL=3. One warm-up inference and one timed inference, 3,000 dispatches across five counter passes.
   Source: /var/tmp/mad-kernel/2026-11-04/eager_counters_ser/kernel_card.json
@@ -14,7 +14,7 @@ Replay outside the model, gemm_iso.py. runs/2026-11-04/eager_gemm_iso.kernel_car
 65-inference run, 25 warm-up and 40 timed, 97,500 dispatches. Run eager_counters_ser_full2.
   runs/2026-11-04/eager_in_model.kernel_card.json is this run, not the short card.
   duration 7.16 µs, bandwidth 13.23% of peak, mean MFMA 3.31%.
-  The post keeps the short run as the card, because about one dispatch in five inflated a matrix-op count.
+  The post kept the short run as the card, because about one dispatch in five inflated a matrix-op count.
 
 GEAK kernel card, runs/2026-11-03/geak_kernel/kernel_card.json.
   _fw_skmm_kernel, 58,680 dispatches, duration 4.32 µs (median), bandwidth 28.29% of peak, MFMA 2.24% of peak.
@@ -29,4 +29,4 @@ Stall repro, runs/2026-11-04/stall/out/results.txt. Same counters, kernel filter
 Thread trace, run geak_att. rocprofv3 --kernel-trace --att --att-target-cu 1, kernel ^_fw_skmm_kernel$, iterations [300-305]. Summary: runs/2026-11-04/geak_att_summary.txt.
   K=3072, code object 117, 6 dispatches, 24 static MFMA: s_waitcnt 60.2% of traced cycles, 76.1% of stall cycles, MFMA 1.9% of traced cycles.
   K=4096, code object 121, 6 dispatches, 32 static MFMA: s_waitcnt 67.7% of traced cycles, 88.0% of stall cycles, MFMA 2.6% of traced cycles.
-  The post's table rounds the traced-cycle shares to 60% and 68%.
+  The post's table rounded the traced-cycle shares to 60% and 68%.

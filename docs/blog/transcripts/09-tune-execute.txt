@@ -1,3 +1,5 @@
+The post's TunableOp numbers are now the 2026-11-05 runs in 16-rerun-r6-2026-11-05.txt. This file is the 2026-11-01 and 2026-11-02 attempts.
+
 Dispatch, then a clean remeasure of pyt_fam_fastwam_geak. Fam cache mounted.
 
 Dispatch, rocm_trace_lite only (rerun-dispatch):

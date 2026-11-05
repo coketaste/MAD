@@ -1,0 +1,101 @@
+{
+  "kernel": "_fw_skmm_kernel",
+  "arch": "gfx950",
+  "status": "ambiguous",
+  "match_rule": "VGPR count from the counter CSV",
+  "variants_found": 2,
+  "variants": [
+    {
+      "kernel": "_fw_skmm_kernel",
+      "source": "_fw_skmm_kernel.amdgcn",
+      "instructions": 240,
+      "mix": {
+        "lds": 60,
+        "valu": 47,
+        "waitcnt": 40,
+        "salu": 35,
+        "vmem": 26,
+        "mfma": 24,
+        "barrier": 5,
+        "smem": 2,
+        "branch": 1
+      },
+      "memory_ops": {
+        "ds_read_b128": 36,
+        "buffer_load_dwordx4": 24,
+        "ds_write_b128": 24,
+        "buffer_store_dwordx4": 2
+      },
+      "memory_widths": {
+        "lds:b128": 60,
+        "vmem:dwordx4": 26
+      },
+      "loops": [],
+      "vgpr": 92,
+      "agpr": 0,
+      "sgpr": 23,
+      "vgpr_spill": 0,
+      "sgpr_spill": 0,
+      "scratch_bytes": 0,
+      "lds_bytes": 16384,
+      "waves_per_workgroup": 2,
+      "compiler_occupancy": 5,
+      "triton": {
+        "num_warps": 2,
+        "num_stages": 2,
+        "waves_per_eu": 0,
+        "matrix_instr_nonkdim": 16,
+        "kpack": 1,
+        "shared": 16384
+      },
+      "occupancy_waves_per_simd": 5,
+      "occupancy_limiter": "registers"
+    },
+    {
+      "kernel": "_fw_skmm_kernel",
+      "source": "_fw_skmm_kernel.amdgcn",
+      "instructions": 289,
+      "mix": {
+        "lds": 80,
+        "waitcnt": 50,
+        "valu": 47,
+        "salu": 36,
+        "vmem": 34,
+        "mfma": 32,
+        "barrier": 7,
+        "smem": 2,
+        "branch": 1
+      },
+      "memory_ops": {
+        "ds_read_b128": 48,
+        "buffer_load_dwordx4": 32,
+        "ds_write_b128": 32,
+        "buffer_store_dwordx4": 2
+      },
+      "memory_widths": {
+        "lds:b128": 80,
+        "vmem:dwordx4": 34
+      },
+      "loops": [],
+      "vgpr": 92,
+      "agpr": 0,
+      "sgpr": 23,
+      "vgpr_spill": 0,
+      "sgpr_spill": 0,
+      "scratch_bytes": 0,
+      "lds_bytes": 16384,
+      "waves_per_workgroup": 2,
+      "compiler_occupancy": 5,
+      "triton": {
+        "num_warps": 2,
+        "num_stages": 2,
+        "waves_per_eu": 0,
+        "matrix_instr_nonkdim": 16,
+        "kpack": 1,
+        "shared": 16384
+      },
+      "occupancy_waves_per_simd": 5,
+      "occupancy_limiter": "registers"
+    }
+  ]
+}

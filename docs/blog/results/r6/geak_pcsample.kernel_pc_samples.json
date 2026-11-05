@@ -1,0 +1,153 @@
+{
+  "kernel": "_fw_skmm_kernel",
+  "samples": 79315,
+  "kernels_sampled": {
+    "_fw_skmm_kernel": 79315,
+    "triton_tem_fused_add_addmm_mul_native_layer_norm_split_t_view_1": 55163,
+    "triton_tem_fused_addmm_gelu_skpost_t_view_3": 53707,
+    "_fw_qrms_attn_kernel": 41100,
+    "_fw_attn_kernel": 36713
+  },
+  "issued_share": 0.22,
+  "stall_reasons": [
+    {
+      "value": "NOT_ISSUED_REASON_WAITCNT",
+      "samples": 52825,
+      "share": 0.666
+    },
+    {
+      "value": "NOT_ISSUED_REASON_OTHER_WAIT",
+      "samples": 17436,
+      "share": 0.22
+    },
+    {
+      "value": "NOT_ISSUED_REASON_ARBITER_WIN_EX_STALL",
+      "samples": 4202,
+      "share": 0.053
+    },
+    {
+      "value": "NOT_ISSUED_REASON_BARRIER_WAIT",
+      "samples": 2401,
+      "share": 0.03
+    },
+    {
+      "value": "NOT_ISSUED_REASON_ALU_DEPENDENCY",
+      "samples": 1434,
+      "share": 0.018
+    },
+    {
+      "value": "NOT_ISSUED_REASON_NO_INSTRUCTION_AVAILABLE",
+      "samples": 467,
+      "share": 0.006
+    },
+    {
+      "value": "NOT_ISSUED_REASON_INTERNAL_INSTRUCTION",
+      "samples": 368,
+      "share": 0.005
+    },
+    {
+      "value": "NOT_ISSUED_REASON_ARBITER_NOT_WIN",
+      "samples": 182,
+      "share": 0.002
+    }
+  ],
+  "instruction_types": [
+    {
+      "value": "TYPE_NO_INST",
+      "samples": 57495,
+      "share": 0.725
+    },
+    {
+      "value": "TYPE_LDS",
+      "samples": 10903,
+      "share": 0.137
+    },
+    {
+      "value": "TYPE_TEX",
+      "samples": 4034,
+      "share": 0.051
+    },
+    {
+      "value": "TYPE_VALU",
+      "samples": 3129,
+      "share": 0.039
+    },
+    {
+      "value": "TYPE_SCALAR",
+      "samples": 1911,
+      "share": 0.024
+    },
+    {
+      "value": "TYPE_MATRIX",
+      "samples": 1556,
+      "share": 0.02
+    },
+    {
+      "value": "TYPE_BARRIER",
+      "samples": 287,
+      "share": 0.004
+    }
+  ],
+  "hot_instructions": [
+    {
+      "value": "s_waitcnt vmcnt(7)",
+      "samples": 10735,
+      "share": 0.135
+    },
+    {
+      "value": "s_waitcnt vmcnt(8)",
+      "samples": 10317,
+      "share": 0.13
+    },
+    {
+      "value": "s_waitcnt vmcnt(3)",
+      "samples": 10085,
+      "share": 0.127
+    },
+    {
+      "value": "s_waitcnt vmcnt(11)",
+      "samples": 5919,
+      "share": 0.075
+    },
+    {
+      "value": "s_waitcnt lgkmcnt(0)",
+      "samples": 4357,
+      "share": 0.055
+    },
+    {
+      "value": "s_waitcnt vmcnt(5)",
+      "samples": 3410,
+      "share": 0.043
+    },
+    {
+      "value": "s_barrier",
+      "samples": 2688,
+      "share": 0.034
+    },
+    {
+      "value": "s_waitcnt vmcnt(1)",
+      "samples": 1587,
+      "share": 0.02
+    },
+    {
+      "value": "s_waitcnt vmcnt(4)",
+      "samples": 1359,
+      "share": 0.017
+    },
+    {
+      "value": "s_waitcnt vmcnt(0)",
+      "samples": 1301,
+      "share": 0.016
+    },
+    {
+      "value": "buffer_load_dwordx4 v[48:51], v10, s[8:11], 0 offen offset:256",
+      "samples": 1226,
+      "share": 0.015
+    },
+    {
+      "value": "s_waitcnt lgkmcnt(2)",
+      "samples": 1203,
+      "share": 0.015
+    }
+  ]
+}

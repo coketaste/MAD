@@ -1,0 +1,233 @@
+{
+  "status": "ok",
+  "kernel": "_fw_skmm_kernel",
+  "dispatches_traced": 12,
+  "variants": [
+    {
+      "code_objects": [
+        "106"
+      ],
+      "dispatches_traced": 6,
+      "dispatch_ids": [
+        "10707",
+        "10730",
+        "10742",
+        "10754",
+        "10766",
+        "10778"
+      ],
+      "kernel_ids": [
+        "7999"
+      ],
+      "static_instructions": 347,
+      "static_mfma": 32,
+      "issues": 3504,
+      "latency_cycles": 78536,
+      "stall_cycles": 60748,
+      "by_class": {
+        "waitcnt": {
+          "issues": 588,
+          "latency_share": 0.667,
+          "stall_share": 0.863
+        },
+        "lds": {
+          "issues": 960,
+          "latency_share": 0.146,
+          "stall_share": 0.024
+        },
+        "barrier": {
+          "issues": 168,
+          "latency_share": 0.053,
+          "stall_share": 0.063
+        },
+        "vmem": {
+          "issues": 408,
+          "latency_share": 0.048,
+          "stall_share": 0.033
+        },
+        "valu": {
+          "issues": 564,
+          "latency_share": 0.034,
+          "stall_share": 0.005
+        },
+        "mfma": {
+          "issues": 384,
+          "latency_share": 0.026,
+          "stall_share": 0.007
+        },
+        "salu": {
+          "issues": 432,
+          "latency_share": 0.025,
+          "stall_share": 0.006
+        },
+        "smem": {
+          "issues": 0,
+          "latency_share": 0.0,
+          "stall_share": 0.0
+        }
+      },
+      "top_instructions": [
+        {
+          "instruction": "s_waitcnt vmcnt(3)",
+          "latency_share": 0.193,
+          "stall_share": 0.249,
+          "hits": 24
+        },
+        {
+          "instruction": "s_waitcnt vmcnt(7)",
+          "latency_share": 0.107,
+          "stall_share": 0.139,
+          "hits": 48
+        },
+        {
+          "instruction": "s_waitcnt vmcnt(8)",
+          "latency_share": 0.099,
+          "stall_share": 0.128,
+          "hits": 12
+        },
+        {
+          "instruction": "s_waitcnt vmcnt(11)",
+          "latency_share": 0.063,
+          "stall_share": 0.082,
+          "hits": 12
+        },
+        {
+          "instruction": "s_waitcnt lgkmcnt(0)",
+          "latency_share": 0.056,
+          "stall_share": 0.072,
+          "hits": 108
+        },
+        {
+          "instruction": "s_barrier",
+          "latency_share": 0.053,
+          "stall_share": 0.063,
+          "hits": 168
+        }
+      ],
+      "code_object_files": [
+        {
+          "id": "106",
+          "file": "280_gfx950_code_object_id_106.out",
+          "sha256": "f886d7d7e8323e1f5632ce677de8d097347bb3030d1a5d78cff1799c4b19e7fa",
+          "matches": [
+            "co/geak/triton/F4PUJMDEFS5NGYN35X2GVIZ35BA6IFUL72LHM6ITEHFLRM4YCASQ/_fw_skmm_kernel.hsaco"
+          ]
+        }
+      ]
+    },
+    {
+      "code_objects": [
+        "102"
+      ],
+      "dispatches_traced": 6,
+      "dispatch_ids": [
+        "8847",
+        "8863",
+        "8867",
+        "8875",
+        "8879",
+        "8887"
+      ],
+      "kernel_ids": [
+        "7995"
+      ],
+      "static_instructions": 298,
+      "static_mfma": 24,
+      "issues": 2892,
+      "latency_cycles": 65304,
+      "stall_cycles": 51348,
+      "by_class": {
+        "waitcnt": {
+          "issues": 468,
+          "latency_share": 0.596,
+          "stall_share": 0.758
+        },
+        "vmem": {
+          "issues": 312,
+          "latency_share": 0.16,
+          "stall_share": 0.178
+        },
+        "lds": {
+          "issues": 720,
+          "latency_share": 0.129,
+          "stall_share": 0.022
+        },
+        "valu": {
+          "issues": 564,
+          "latency_share": 0.04,
+          "stall_share": 0.006
+        },
+        "salu": {
+          "issues": 420,
+          "latency_share": 0.029,
+          "stall_share": 0.007
+        },
+        "barrier": {
+          "issues": 120,
+          "latency_share": 0.025,
+          "stall_share": 0.027
+        },
+        "mfma": {
+          "issues": 288,
+          "latency_share": 0.02,
+          "stall_share": 0.002
+        },
+        "smem": {
+          "issues": 0,
+          "latency_share": 0.0,
+          "stall_share": 0.0
+        }
+      },
+      "top_instructions": [
+        {
+          "instruction": "s_waitcnt vmcnt(8)",
+          "latency_share": 0.152,
+          "stall_share": 0.193,
+          "hits": 12
+        },
+        {
+          "instruction": "s_waitcnt vmcnt(7)",
+          "latency_share": 0.128,
+          "stall_share": 0.163,
+          "hits": 48
+        },
+        {
+          "instruction": "buffer_load_dwordx4 v[48:51], v10, s[8:11], 0 offen offset:256",
+          "latency_share": 0.122,
+          "stall_share": 0.153,
+          "hits": 12
+        },
+        {
+          "instruction": "s_waitcnt vmcnt(3)",
+          "latency_share": 0.114,
+          "stall_share": 0.144,
+          "hits": 12
+        },
+        {
+          "instruction": "s_waitcnt lgkmcnt(0)",
+          "latency_share": 0.054,
+          "stall_share": 0.069,
+          "hits": 72
+        },
+        {
+          "instruction": "s_waitcnt vmcnt(6)",
+          "latency_share": 0.028,
+          "stall_share": 0.036,
+          "hits": 24
+        }
+      ],
+      "code_object_files": [
+        {
+          "id": "102",
+          "file": "280_gfx950_code_object_id_102.out",
+          "sha256": "375db789a002f8059f812b559384ab7173176b70805040ac7590bb4ab85fba9e",
+          "matches": [
+            "co/geak/triton/BKOK5DGNSSKCC7UCP535GTWTQM4SEHGTZEKSA4NSOKVYEZG4MDQA/_fw_skmm_kernel.hsaco"
+          ]
+        }
+      ]
+    }
+  ],
+  "scope": "one compute unit (--att-target-cu); a short kernel-iteration range",
+  "device_support": "rocprofv3 documents thread trace for MI200 and MI300. The same command completed on gfx950 with rocprofv3 1.3.2."
+}
