@@ -20,6 +20,8 @@ release: v26.10
 # readme: guide linked from the recipe pages.
 # one_page: one recipe page for the whole registry, one variant per card (node-count sweeps,
 #   per-backend microbenchmarks).
+# label_prefix: launcher tag -> model name put in front of config names that do not carry one
+#   (Primus worldmirror configs are called stage1-posttrain, stage2-posttrain, ...).
 # k8s: manual -- the readme documents a per-node run outside SLURM (Kubernetes, bare metal).
 frameworks:
   vllm:                      {name: vLLM, workload: inference, readme: benchmark/vllm/README.md}
@@ -35,7 +37,8 @@ frameworks:
   pyt_clip_inference:        {name: PyTorch inference, workload: inference, readme: benchmark/pytorch_inference/README.md}
   pyt_hy_video:              {name: PyTorch inference, workload: inference, readme: benchmark/pytorch_inference/README.md}
   pyt_wan2.1_inference:      {name: PyTorch inference, workload: inference, readme: benchmark/pytorch_inference/README.md}
-  primus_train:              {name: Primus, workload: training, by_launcher: true, readme: benchmark/primus/README.md}
+  primus_train:              {name: Primus, workload: training, by_launcher: true, readme: benchmark/primus/README.md,
+                              label_prefix: {worldmirror: HunyuanWorld-Mirror}}
   jax-maxtext:               {name: JAX MaxText, workload: training, readme: benchmark/jax_maxtext/README.md}
   jax-maxdiffusion:          {name: JAX MaxDiffusion, workload: training, readme: benchmark/jax_maxtext/README.md}
   pytorch_train:             {name: PyTorch training, workload: training}
@@ -101,39 +104,3 @@ roadmap: []
 #    skus: [MI355X]
 #    status: planned
 #    note: optional one-liner
-
-# QA scope. Statements derivable from the registry (performance coverage, multi-node runs,
-# Kubernetes, opt-in multi-node configs, NIAH, unpinned latest images) are added
-# automatically; list the rest here.
-qa:
-  covered:
-    - area: Serving accuracy (GSM8K via lm-eval, 250 samples)
-      scope: vLLM serving benchmarks
-      note: Runs after each serving benchmark unless the config sets --run_accuracy False (Kimi-K3 does). Source scripts/vllm/run_vllm.py.
-    - area: Accuracy (GSM8K 5-shot, opt-in)
-      scope: ATOM Kimi-K3
-      note: Separate config scripts/atom/configs/accuracy.yaml; the registered pyt_atom_kimi-k3 run uses configs/default.yaml and does not include it.
-  not_covered:
-    - area: Accuracy pass/fail gating
-      scope: All frameworks
-      note: Accuracy scores are recorded next to the performance results; MAD does not fail a run on a score threshold.
-    - area: Training convergence / loss quality
-      scope: Primus, JAX MaxText/MaxDiffusion, PyTorch training
-      note: Training runs report throughput (TFLOP/s, tokens/s); loss curves and model quality are not checked.
-    - area: Per-product hardware validation from the registry
-      scope: All models
-      note: The GPU columns reflect where madengine will run a model (skip_gpu_arch / config directory), not where it was last tested. See CI coverage.
-
-# Architectures with CI. GPU CI runs outside GitHub, so this is maintained by hand.
-# TODO(owners): add one entry per product with GPU CI, e.g.
-#  - name: Nightly vLLM performance
-#    skus: [MI300X, MI355X]
-#    cadence: nightly
-#    suites: [vllm_default]
-#    runner: internal GPU cluster
-ci:
-  - name: Model registry discovery and dashboard build
-    skus: []
-    cadence: every pull request and push to develop
-    suites: [all registered models (GPU-free)]
-    runner: GitHub Actions (.github/workflows/dashboard.yml)

@@ -116,6 +116,32 @@ def test_skus_for():
     assert collect.skus_for({"tags": ["primus", "megatron", "MI355X", "x"], "skip_gpu_arch": ""}) == ["MI355X"]
 
 
+def test_untracked_product():
+    # A config for a product the dashboard does not track (MI455X) is not shown; without the
+    # filter skus_for() would claim it runs on every tracked product.
+    assert collect.untracked_product({"tags": ["primus", "megatron", "MI455X", "x"]})
+    assert not collect.untracked_product({"tags": ["primus", "megatron", "MI355X", "x"]})
+    assert not collect.untracked_product({"tags": ["vllm", "vllm_default"]})
+
+
+def test_worldmirror_label_prefix():
+    frameworks = {"primus_train": {"name": "Primus", "workload": "training", "by_launcher": True,
+                                   "label_prefix": {"worldmirror": "HunyuanWorld-Mirror"}}}
+    images = {"../../docker/primus": {"image": "rocm/primus:v26.9", "rocm": "7.2", "path": "docker/primus.Dockerfile"}}
+
+    def describe(launcher, config):
+        model = {"name": f"primus_train/{launcher}_MI355X_{config}", "registry": "primus_train",
+                 "dockerfile": "../../docker/primus", "tags": ["primus", launcher, "MI355X", config],
+                 "args": f"--config_path examples/{launcher}/configs/MI355X/{config}.yaml"}
+        return collect.describe_model(model, frameworks, {}, images)
+
+    row = describe("worldmirror", "stage1-posttrain")
+    assert row["model"] == "HunyuanWorld-Mirror-stage1-posttrain" and row["framework"] == "Primus Worldmirror"
+    assert row["skus"] == ["MI355X"]
+    # Other launchers keep their config name.
+    assert describe("megatron", "zaya1_8B-BF16-pretrain")["model"] == "zaya1_8B-BF16-pretrain"
+
+
 def test_model_label():
     assert collect.model_label({"name": "vllm/x", "args": "--model_repo amd/Llama-3.3-70B-FP8 --config c.yaml"}) == \
         ("Llama-3.3-70B-FP8", "amd/Llama-3.3-70B-FP8")
@@ -178,21 +204,6 @@ def test_merge_one_page():
     assert rows[5]["variant"] == "" and rows[5]["page"] == "fw/Qwen3-8B"
 
 
-def test_derived_qa_multi_node_and_kubernetes():
-    def row(name, nodes, k8s="", status="registered", framework="F"):
-        return {"name": name, "nodes": nodes, "framework": framework, "family": name, "suites": [], "registry": "r",
-                "deployment": {"scheduler": "slurm", "k8s": k8s, "status": status,
-                               "switch": "JAX_MAXTEXT_INCLUDE_MULTINODE" if status == "opt-in" else ""}}
-    rows = [row("a", 1), row("b", 2, k8s="manual", framework="KV"), row("c", 4), row("d", 2, status="opt-in")]
-    covered, not_covered = collect.derived_qa(rows, [])
-    multi = next(q for q in covered if q["area"].startswith("Multi-node"))
-    assert multi["scope"].startswith("2 models on 2–4 nodes")
-    kube = next(q for q in not_covered if q["area"] == "Kubernetes")
-    assert "KV documents a manual per-node run" in kube["note"]
-    opt_in = next(q for q in not_covered if q["area"] == "Multi-node training models")
-    assert opt_in["scope"].startswith("d ") and "JAX_MAXTEXT_INCLUDE_MULTINODE=1" in opt_in["note"]
-
-
 @pytest.mark.parametrize("label, family", [
     ("Llama-3.1-405B-Instruct-MXFP4-Preview", "Llama-3.1-405B-Instruct"),
     ("Llama-3.3-70B-Instruct-FP8-KV", "Llama-3.3-70B-Instruct"),
@@ -230,7 +241,7 @@ def test_load_status(tmp_path):
     status = tmp_path / "status.yaml"
     status.write_text("release: v26.10\nroadmap:\n  - {model: A}\n")
     loaded = collect.load_status(str(status))
-    assert loaded["internal"] is False and loaded["qa"] == {"covered": [], "not_covered": []}
+    assert loaded["internal"] is False
     internal = tmp_path / "roadmap.internal.yaml"
     internal.write_text("- {model: B}\n")
     merged = collect.load_status(str(status), str(internal))

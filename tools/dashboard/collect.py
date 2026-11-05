@@ -1,10 +1,10 @@
 """
-Collect a MAD status snapshot: model support, ROCm images, QA scope, CI coverage, roadmap.
+Collect a MAD status snapshot: model support, ROCm images, roadmap.
 
 Everything the repository already knows is derived here: the model registry comes from
 madengine's own discovery (scripts/*/models.json and scripts/*/get_models_json.py), base
 images from the Dockerfiles. ROCm versions come from image tags, else from the images' registry metadata
-(image_registry.py). Facts the repository cannot know (CI matrix, QA statements, public
+(image_registry.py). Facts the repository cannot know (public
 roadmap, ROCm versions neither source states) come from the curated dashboard/status.yaml. The resulting snapshot is plain JSON so a release can be frozen
 into dashboard/releases/<version>.json and re-rendered later without the repo state.
 """
@@ -52,8 +52,6 @@ STATUS_KEYS = {
     "rocm_overrides": dict,
     "roadmap": list,
     "roadmap_source": dict,
-    "qa": dict,
-    "ci": list,
 }
 
 
@@ -79,8 +77,6 @@ def load_status(path=STATUS_PATH, internal_roadmap_path=None):
     if not status["release"]:
         raise ValueError(f"{path}: 'release' is required (e.g. v26.10)")
     version_key(status["release"])
-    for key in ("covered", "not_covered"):
-        status["qa"].setdefault(key, [])
     status["internal"] = False
     if internal_roadmap_path:
         with open(internal_roadmap_path) as f:
@@ -284,6 +280,15 @@ def skus_for(model):
     return [sku for isa, skus in ISA_SKUS.items() if isa not in skipped for sku in skus]
 
 
+def untracked_product(model):
+    """True when a config names an Instinct product the dashboard does not track (e.g. MI455X).
+
+    skus_for() would otherwise fall back to "every product" for such a config, which says the
+    model runs on GPUs it was never registered for.
+    """
+    return any(re.fullmatch(r"MI\d{3}[A-Z]?", tag) and tag not in SKUS for tag in model.get("tags", []))
+
+
 def arg_value(args, flag):
     m = re.search(rf"(?:^|\s){re.escape(flag)}[\s=]+(\S+)", args or "")
     return m.group(1) if m else None
@@ -386,6 +391,12 @@ def framework_of(model, frameworks):
 def describe_model(model, frameworks, suite_tags, images, opt_in=False):
     label, hf_repo = model_label(model)
     framework, workload = framework_of(model, frameworks)
+    # Configs named after a stage or a recipe ("stage1-posttrain") say nothing about the model;
+    # status.yaml gives their launcher a name to put in front.
+    prefix = (frameworks.get(model["registry"], {}).get("label_prefix") or {}).get(
+        model["tags"][1] if len(model.get("tags", [])) > 1 else "")
+    if prefix and not hf_repo:
+        label = f"{prefix}-{label}"
     image = images[model["dockerfile"]]
     family = family_of(label)
     # Opt-in configs size their data-center mesh from the allocation (dcn_* = -1): two or more.
@@ -463,59 +474,6 @@ def git_commit(repo_root=REPO_ROOT):
         return ""
 
 
-def derived_qa(rows, images):
-    """QA statements the registry itself proves; merged ahead of the curated ones."""
-    covered = [
-        {
-            "area": "Performance benchmark",
-            "scope": f"{len(rows)} registered models across {len({r['framework'] for r in rows})} frameworks",
-            "note": "Every run reports throughput/latency through madengine (performance line or multiple_results CSV).",
-        }
-    ]
-    registered = [r for r in rows if r["deployment"]["status"] == "registered"]
-    multi = [r for r in registered if r["nodes"] > 1]
-    if multi:
-        covered.append({
-            "area": "Multi-node runs (SLURM)",
-            "scope": f"{len(multi)} models on {min(r['nodes'] for r in multi)}–{max(r['nodes'] for r in multi)} nodes "
-                     f"({', '.join(sorted({r['framework'] for r in multi}))})",
-            "note": "slurm_multi model cards: the launcher script runs on the SLURM head node and starts one "
-                    "container per node.",
-        })
-    niah = [r for r in rows if "niah" in r["suites"]]
-    if niah:
-        covered.append({
-            "area": "Long-context accuracy (needle-in-a-haystack)",
-            "scope": ", ".join(r["model"] for r in niah),
-            "note": "Models tagged niah.",
-        })
-    not_covered = []
-    manual = sorted({r["framework"] for r in rows if r["deployment"]["k8s"] == "manual"})
-    not_covered.append({
-        "area": "Kubernetes",
-        "scope": "All registered models",
-        "note": "No model card targets Kubernetes, and madengine's slurm_multi launcher is SLURM-only."
-                + (f" {', '.join(manual)} documents a manual per-node run that works on Kubernetes." if manual else ""),
-    })
-    opt_in = [r for r in rows if r["deployment"]["status"] == "opt-in"]
-    if opt_in:
-        switches = sorted({r["deployment"]["switch"] for r in opt_in})
-        not_covered.append({
-            "area": "Multi-node training models",
-            "scope": f"{', '.join(sorted({r['family'] for r in opt_in}))} ({', '.join(sorted({r['framework'] for r in opt_in}))})",
-            "note": f"Discovered only with {' / '.join(switches)}=1. The recipe uses madengine's primus launcher "
-                    "on SLURM and is not validated by MAD.",
-        })
-    unpinned = [i for i in images if i["rocm"] == "latest"]
-    if unpinned:
-        not_covered.append({
-            "area": "Pinned base images",
-            "scope": f"{len(unpinned)} Dockerfiles build from an unpinned latest tag",
-            "note": ", ".join(i["dockerfile"] for i in unpinned) + " — results are not reproducible across rebuilds.",
-        })
-    return covered, not_covered
-
-
 def source_repo_of(repo_root):
     """'owner/name' of the checkout's origin on GitHub ('ROCm/MAD' when it cannot be told)."""
     try:
@@ -544,7 +502,7 @@ def build_snapshot(status, version=None, state="live", repo_root=REPO_ROOT, sour
     images' ROCm versions from their registries where the tag does not encode one."""
     warnings = []
     excluded = set(status["exclude"])
-    models = [m for m in discover_models(repo_root) if m["name"] not in excluded]
+    models = [m for m in discover_models(repo_root) if m["name"] not in excluded and not untracked_product(m)]
 
     registries = {}
     for m in models:
@@ -586,7 +544,6 @@ def build_snapshot(status, version=None, state="live", repo_root=REPO_ROOT, sour
         first_use.setdefault(r["dockerfile"], i)
     image_rows.sort(key=lambda i: first_use[i["dockerfile"]])
 
-    covered, not_covered = derived_qa(rows, image_rows)
     roadmap, landed = roadmap_items(status, rows, warnings, github)
     return {
         "schema": SCHEMA,
@@ -606,11 +563,6 @@ def build_snapshot(status, version=None, state="live", repo_root=REPO_ROOT, sour
         "roadmap": roadmap,
         "roadmap_landed": landed,
         "roadmap_source": status["roadmap_source"],
-        "qa": {
-            "covered": covered + status["qa"]["covered"],
-            "not_covered": not_covered + status["qa"]["not_covered"],
-        },
-        "ci": status["ci"],
         "warnings": warnings,
     }
 
