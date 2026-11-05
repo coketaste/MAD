@@ -295,7 +295,7 @@ const RESOLVE_SCHEMA = {
 }
 const resolved = await agent(
   `Resolve one MAD model for mad-optimize. Run from the MAD repo root.
-1. Run \`${PREFLIGHT}\`. If it exits non-zero, return preflightOk false with its output and stop.
+1. Run \`${PREFLIGHT}\` exactly as written, as its own command. Append nothing (no \`;\`, \`&&\`, \`|\` or \`echo $?\`): the permission rules allow that exact command only, and the Bash result already reports a non-zero exit. If it exits non-zero, return preflightOk false with its output and stop.
 2. Run \`madengine discover --tags ${shellQuote(tag)} --json\` (read-only). Put every model "name" in resolvedModels.
 3. If there is exactly one model, also return its dockerfile, url, and args from that JSON object.
 Do not build an image and do not start a benchmark.`,
