@@ -1,19 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="720" height="220" viewBox="0 0 720 220" role="img" aria-label="Speedup versus eager. Compile is 2.52 times, GEAK is 8.99 times, GEAK at 2 steps is 22.55 times.">
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="220" viewBox="0 0 720 220" role="img" aria-label="Speedup versus eager. Compile is 2.50 times, GEAK is 9.09 times, GEAK at 2 steps is 22.61 times.">
 <title>Speedup versus eager</title>
 <rect width="100%" height="100%" fill="#ffffff"/>
 <style>text{font-family:sans-serif;fill:#1a1a1a} .muted{fill:#555}</style>
 <text x="16" y="26" font-size="16" font-weight="600">Times faster than eager, same MI350X</text>
 <text x="16" y="62" font-size="13">eager</text>
-<rect x="150" y="48" width="22.2" height="18" fill="#1f4e79"/>
+<rect x="150" y="48" width="22.1" height="18" fill="#1f4e79"/>
 <text x="180" y="62" font-size="12">1.00&#215;</text>
 <text x="16" y="98" font-size="13">compile</text>
-<rect x="150" y="84" width="55.9" height="18" fill="#1f4e79"/>
-<text x="214" y="98" font-size="12">2.52&#215;</text>
+<rect x="150" y="84" width="55.3" height="18" fill="#1f4e79"/>
+<text x="213" y="98" font-size="12">2.50&#215;</text>
 <text x="16" y="134" font-size="13">GEAK</text>
-<rect x="150" y="120" width="199.6" height="18" fill="#1f4e79"/>
-<text x="358" y="134" font-size="12">8.99&#215;</text>
+<rect x="150" y="120" width="201.0" height="18" fill="#1f4e79"/>
+<text x="359" y="134" font-size="12">9.09&#215;</text>
 <text x="16" y="170" font-size="13">GEAK, 2 steps</text>
-<rect x="150" y="156" width="500" height="18" fill="#1f4e79"/>
-<text x="658" y="170" font-size="12">22.55&#215;</text>
+<rect x="150" y="156" width="500.0" height="18" fill="#1f4e79"/>
+<text x="658" y="170" font-size="12">22.61&#215;</text>
 <text x="16" y="204" font-size="12" class="muted">Median of three rounds. A longer bar is a larger speedup over eager.</text>
 </svg>
