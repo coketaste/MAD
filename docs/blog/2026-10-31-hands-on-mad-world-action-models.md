@@ -8,7 +8,7 @@ The fast kernels come from [`faster-action-models`](https://rocm.blogs.amd.com/a
 
 - **The released GEAK ladder reproduces on MI350X.** The published MI355X times are 222.55 ms eager, 24.17 ms for the shipped GEAK tree (9.2×), and 9.59 ms at 2 denoising steps (about 23×). The same three arms on one MI350X measure 225.90, 24.85, and 9.99 ms. Two later runs on the same GPU landed within 2% of those medians. MAD measured this tree. It did not create the 9×.
 - **The warm profile names the real hotspot.** A cold trace says `triton_mm` is 66% of kernel time, but that is `torch.compile` autotuning. After a warm cache, the top kernel is `_fw_skmm_kernel` at 14.8%. Its kernel card says it is bandwidth-bound, and a rocprofv3 thread trace shows that both of its compiled variants spend most of their cycles waiting on global loads.
-- **The keep rule refuses a kernel-only win and keeps a host-side one.** A budget-1 GEAK patch made `_fw_skmm_kernel` 1.0378× faster on its own test, but two end-to-end samples do not clear the keep rule, so `mad-optimize` leaves the shipped tree in place. That is "not kept," not a measured regression. In the rerun, two budget-1 GEAK runs found nothing faster. TunableOp is not kept either. Pinning the eager arm to its GPU's NUMA-local CPU cores is kept: 3.6% faster, against 1.1% noise.
+- **The keep rule refuses kernel-only wins.** Two budget-1 GEAK edits make the split-K multiply about 4% faster on its own kernel test, but four model samples a side put both within 0.6% of the shipped tree, inside the noise. `mad-optimize` keeps the shipped tree. That is "not kept," not a measured regression. TunableOp is not kept either. Pinning the eager arm to its GPU's NUMA-local CPU cores made it 3.6% faster in both comparisons and cleared the rule in one.
 - **A 40-task smoke stays in the same range as the published evaluation.** GEAK at 2 steps solved 40 of 40 tasks and eager solved 37 of 40, one trial each. The published MI355X evaluation, a mean of 11 full LIBERO runs, is 96.86% for GEAK and 97.00% at 2 steps. The smoke is consistent with that range. It is not that evaluation.
 - **The prompts that reproduce each section are collected in the appendix.** Four of them stay in the text, at the step where the prompt itself is the lesson. Paste them into Claude Code from the MAD repo root.
 
@@ -61,7 +61,7 @@ Two later runs of the same container, on the same GPU with nothing else on the n
 | GEAK | 24.85 | 24.53 | 24.86 |
 | GEAK at 2 steps | 9.99 | 9.99 | 9.81 |
 
-The sweep workflow, `mad-benchmark-sweep` with `execute` on, runs each arm as its own cell. In this rerun its cells ran pinned to GPU 0's CPU cores while six other runs shared the node, and measured 200.13, 81.72, 24.71, and 9.78 ms. Those eager and compile cells are not comparable with the table. On a quiet node, pinning alone made eager 3.6% faster (section 7), less than the gap here, and the run does not show where the rest came from.
+The sweep workflow, `mad-benchmark-sweep` with `execute` on, runs each arm as its own cell. In this rerun its cells ran pinned to GPU 0's CPU cores while six other runs shared the node, and measured 200.13, 81.72, 24.71, and 9.78 ms. Those eager and compile cells are not comparable with the table. On a quiet node, eager runs pinned the same way measured 219.05 to 220.87 ms, so the 200.13 ms cell does not reproduce, and the run does not show why it was faster.
 
 On this GPU, GEAK is 3.63× faster than `torch.compile`. The published MI355X comparison is in the same band: `torch.compile` is 1.6–2.6× over eager, and the shipped GEAK tree is 3.7× faster than that compiled path. The published absolute times, on an MI355X, are 222.55 ms eager, 24.17 ms GEAK, and 9.59 ms at 2 steps. The MI350X medians above sit next to those figures. The two machines are not the same measurement, and the post does not treat the small gap between them as a result.
 
@@ -253,18 +253,27 @@ A kernel or setting that is faster in isolation does not always make the model f
 
 Three changes went through that rule.
 
-**A GEAK kernel patch (`mad-optimize`, budget 1).** `mad-optimize` hands the top kernel to GEAK with one attempt. In this rerun, two budget-1 runs each found no faster variant of `_fw_skmm_kernel`, so there was no patch for the model gate. The workflow reports that empty patch as an error, not as "no candidate." The run on 2026-11-03 did produce a patch, and it shows the rule at work. GEAK retuned two defaults: the split-K reduction and the tile size for the K=4096 shape. On its own kernel test, the geometric mean over the two K shapes went from 5.150 µs to 4.959 µs. The 1.0378× is the geometric mean of the per-shape speedups, 1.0476× at K=3072 and 1.0282× at K=4096. Then the whole model was measured twice with the shipped tree, and twice with the patched tree mounted in its place, under `mad-optimize`'s keep rule:
+**A GEAK kernel patch (`mad-optimize`, budget 1).** `mad-optimize` hands the top kernel to GEAK with one attempt. GEAK edits the kernel, times the edit on its own kernel test, and commits it only if that test verifies it at least 2% faster. Then the whole model goes through the keep rule. Two budget-1 runs got that far:
 
-![Budget 1, 2026-11-03. The kernel test is 1.0378×, the geometric mean of the two shapes. One patched model sample matches the shipped tree and the other is 35.88 ms, so the two samples do not clear the keep rule.](figures/optimize-budget.svg)
+- On 2026-11-03, GEAK retuned two defaults, the split-K reduction and the tile size for the K=4096 shape. It verified the edit at 1.0378×, the geometric mean of 1.0476× at K=3072 and 1.0282× at K=4096, and committed it.
+- On 2026-11-05, GEAK tried a different setting, half as many splits and a narrower tile. It verified that one at 1.0142× and dropped it under the 2% bar. A second run that day tried deeper pipelining and found nothing.
 
-| tree | samples (ms) | median (ms) |
-|---|---|---:|
-| shipped | 24.80, 24.87 | 24.83 |
-| patched | 35.88, 24.79 | 30.34 |
+GEAK's kernel test times the shipped kernel and the edit in separate runs. Timed in alternation in one process on a quiet GPU, both edits are real: 1.046× for the 2026-11-03 patch and 1.041× for the edit GEAK dropped, and 1.058× and 1.062× when the weights rotate through more memory than the GPU's 256 MB last-level cache. Then the model ran four times per side under `mad-optimize`'s keep rule, alternating the shipped tree with each edit:
 
-The gate does not keep the patch. Each sample is itself a median of 40 iterations. In the 35.88 ms sample those iterations spread from 25.64 ms to a 90th percentile of 44.35 ms. In the 24.79 ms sample the 90th percentile is 24.86 ms. The run does not show why the first sample spread, so the two medians are not evidence that the model got slower. The better sample is 0.16% under the shipped median, inside the 1% floor. With two samples the only supported result is "not kept."
+![Both GEAK edits are about 4% faster on the kernel test, timed in alternation. Four GEAK-arm model samples per side put both within 0.6% of the shipped tree, inside the noise, so neither is kept.](figures/optimize-budget.svg)
 
-That result also matches the kernel card. `_fw_skmm_kernel` is 14.8% of GPU kernel time, so a 3.7% gain on it is worth about 0.5% of GPU kernel time at most. A later attempt has to cut launches or bytes, for example by folding the separate reduction into the multiply. Another pass over the same tile defaults would be the change this gate already refused.
+| edit | arm | shipped (ms) | edited (ms) | gain | noise | kept |
+|---|---|---:|---:|---:|---:|---|
+| 2026-11-03 patch | GEAK | 24.69 | 24.70 | −0.1% | 3.6% | no |
+| 2026-11-03 patch | GEAK at 2 steps | 9.86 | 9.80 | 0.5% | 1.3% | no |
+| 2026-11-05 edit | GEAK | 24.69 | 24.55 | 0.6% | 5.1% | no |
+| 2026-11-05 edit | GEAK at 2 steps | 9.86 | 9.82 | 0.3% | 1.6% | no |
+
+Each entry is the median of four runs. Neither edit moves the model. The kernel test times `fastwam::skmm` as a standalone op: `_fw_skmm_kernel`, then `_fw_skred_kernel` to add the partial results. In the model, 57,376 of the 58,680 skmm calls add their partials inside `_fw_skpost_kernel` instead, and `_fw_skred_kernel` runs 1,304 times, 0.31% of GPU time. The 2026-11-03 patch's K=3072 gain came entirely from the `_fw_skred_kernel` setting. The 2-step smoke with the 2026-11-05 edit solved all 40 tasks, so its split-K change does not break the arm. It just does not make it faster.
+
+The first 2026-11-03 model samples were inconclusive: one patched sample was 35.88 ms, its iterations spreading from 25.64 ms to a 90th percentile of 44.35 ms. The four-sample measurement above shows no slowdown, so that result is "not kept," not a regression.
+
+That result also matches the kernel card. `_fw_skmm_kernel` is 14.8% of GPU kernel time, so even a 6% gain on it is worth under 1% of GPU kernel time. A later attempt has to cut launches or bytes, for example by folding the separate reduction into the multiply. Another pass over the same tile defaults would be the change this gate already refused.
 
 **A GEMM setting (`mad-tune-search`).** In plan mode, `mad-tune-search` proposes one lever from the evidence it finds. In this rerun it found no dispatch rank in its own run directory, proposed fewer denoising steps, and flagged that lever itself: it needs a code change and an accuracy check. The lever measured here is `PYTORCH_TUNABLEOP_ENABLED=1`, which lets PyTorch time rocBLAS and hipBLASLt GEMM solutions and pick the fastest. It changes no tracked file. On the GEAK arm, two clean baseline runs measured 24.50 and 25.23 ms. The tuning run measured 24.81 ms and wrote no results file. Two candidate runs measured 24.87 and 24.52 ms. The candidate median is 0.7% under the baseline median, inside the 2.95% baseline spread, so TunableOp is not kept. The GEAK tree's hot matrix multiplies are its own Triton kernels, which TunableOp does not touch.
 
@@ -279,7 +288,7 @@ One measurement tip from these tuning runs: `madengine run -m <manifest>` reuses
 | GEAK | 24.53, 24.86 | 24.42, 24.84 | 0.3% | 1.7% | no |
 | GEAK at 2 steps | 9.99, 9.81 | 9.84, 9.80 | 0.8% | 1.8% | no |
 
-Each entry is the median of three rounds, and noise is the larger spread of the two sides, with the 1% floor. Pinning clears the rule for eager only. Compile may gain too, but its rounds vary more than the gain. The GEAK tree replays HIP graphs, so it issues few launches from the host, and its arms do not move. The latency table above stays unpinned, like the published one.
+Each entry is the median of three rounds, and noise is the larger spread of the two sides, with the 1% floor. Pinning clears the rule for eager only. Compile may gain too, but its rounds vary more than the gain. The GEAK tree replays HIP graphs, so it issues few launches from the host, and its arms do not move. An eager-only repeat, three runs a side on a quiet node, measured the same 3.6% gain: 227.54 ms unpinned against 219.28 ms pinned. One unpinned run took 247.16 ms, so that repeat's noise is 9.7% and the gain does not clear the rule there. The three pinned runs spread 0.8%. The latency table above stays unpinned, like the published one.
 
 **Prompt: plan the optimization, without spending the budget**
 
@@ -316,13 +325,13 @@ Eager missed three tasks: one spatial and two long-horizon. GEAK at 2 steps solv
 
 ## 9. A second checkpoint: CAE-FastWAM
 
-CAE-FastWAM (`amd/CAE-FastWAM`) is a different checkpoint, so it is its own model, `pyt_fam_cae_fastwam_latency`, not a fifth sweep cell. The run uses the `cae-fastwam` tree at 10 denoising steps with compile enabled. It measured 13.61 ms, one sample. The published MI355X figure for GEAK plus the Compact Action Expert at 10 steps is 12.82 ms, with 97.28% success over full LIBERO runs. This sample is a latency check on a different GPU. It does not reproduce that success rate.
+CAE-FastWAM (`amd/CAE-FastWAM`) is a different checkpoint, so it is its own model, `pyt_fam_cae_fastwam_latency`, not a fifth sweep cell. The run uses the `cae-fastwam` tree at 10 denoising steps with compile enabled. Three runs measured 13.59, 13.59, and 13.61 ms. The published MI355X figure for GEAK plus the Compact Action Expert at 10 steps is 12.82 ms, with 97.28% success over full LIBERO runs. These samples are a latency check on a different GPU. They do not reproduce that success rate.
 
 ## 10. Limitations
 
-- Each run used one GPU of a shared eight-GPU host. The latency table and the pinning comparison ran with nothing else on the node. The profiling runs, smokes, rollouts, TunableOp, and CAE ran at the same time on separate GPUs, each pinned to its GPU's NUMA-local cores. The latency table has three rounds per arm.
+- Each run used one GPU of a shared eight-GPU host. The latency table, the pinning comparisons, and the GEAK model gate ran with nothing else on the node. The profiling runs, smokes, rollouts, TunableOp, and CAE ran at the same time on separate GPUs, each pinned to its GPU's NUMA-local cores. The latency table has three rounds per arm.
 - The smokes run one trial per task. They check that the 2-step arm still finishes tasks. They are not the published 11-run LIBERO evaluation, and they do not establish accuracy parity.
-- In the 2026-11-03 budget-1 run, the first patched sample is a median of 40 iterations that spread from 25.64 ms to a 90th percentile of 44.35 ms. The second sample's 90th percentile is 24.86 ms. The run does not show why the first sample spread. With two samples, the result is "not kept." It is not a measured slowdown.
+- GEAK's kernel test times the shipped kernel and the edit in separate runs, so its verified speedup carries that run-to-run noise. Timed in alternation, the edit GEAK dropped at 1.014× is 1.041×, as fast as the 2026-11-03 patch it kept at 1.038×. The test also times the split-K op with `_fw_skred_kernel`, which the model barely runs.
 - The eager GEMM card is two inferences, 3,000 dispatches, collected with `AMD_SERIALIZE_KERNEL=3`. A 65-inference counter run on 2026-11-04 reported a larger matrix-op count on about one dispatch in five. This rerun's did not.
 - The thread trace is six launches of each `_fw_skmm_kernel` variant, iterations `[300-305]`, on one compute unit. rocprofv3 documents that mode for MI200 and MI300; this run completed on gfx950.
 - The four-arm run's GEAK arm can fail in Inductor with `CantSplit: 640 not divisible by 392`. One of the six four-arm runs in this rerun failed that way, after its first round.

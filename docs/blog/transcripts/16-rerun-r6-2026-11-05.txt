@@ -92,3 +92,31 @@ Smokes, one trial of 40 tasks: eager 0.925 (37/40; misses libero_spatial t9, lib
 GPU-free examples, runs/r6/transcripts/: preflight, validator (541 models in 20 registries), discover, the
 add-model walk to its duplicate check, the three-layer explanation, sweep plan (4 cells planned, 0 ran), and the
 unregistered pyt_fam_dit4dit cell (error: No models found corresponding to the given tag) all match the post.
+
+GEAK edits through the model gate, 2026-11-06 02:23-03:20 UTC, lane gate on GPU 0, unpinned, nothing else on the node.
+The FastWAM images were rebuilt first: the host's images had been pruned. madengine build --tags pyt_fam resolved the
+base to rocm/pytorch:rocm7.14_ubuntu24.04_py3.12_pytorch_release_2.11.0@sha256:a223aee17aef..., the digest every
+build log since 2026-11-01 records. The edits are config only, read by mot.py at call time:
+  2026-11-03 patch: FASTWAM_SKRED=128,1  FASTWAM_SKCFG_1024_4096=32,32,256,8,2,2
+  2026-11-05 edit:  FASTWAM_SKRED=1024,4 FASTWAM_SKCFG_1024_3072=32,16,256,4,2,2 FASTWAM_SKCFG_1024_4096=32,16,256,4,2,2
+Four rounds per arm, order rotated each round. Per-run values: docs/blog/results/r6/gate_samples.json.
+  GEAK     shipped 24.8022 24.9008 24.5729 24.4554 -> 24.688
+           2026-11-03 24.6895 25.1240 24.2363 24.7170 -> 24.703  gain -0.06%  noise 3.59%  not kept
+           2026-11-05 24.2641 24.3459 24.7566 25.5075 -> 24.551  gain +0.55%  noise 5.06%  not kept
+  GEAK@2   shipped 9.9250 9.8340 9.8800 9.8010 -> 9.857
+           2026-11-03 9.8210 9.7870 9.7850 9.8940 -> 9.804      gain +0.54%  noise 1.26%  not kept
+           2026-11-05 9.9050 9.7960 9.7450 9.8520 -> 9.824      gain +0.33%  noise 1.63%  not kept
+  2-step smoke with the 2026-11-05 edit: 1.0000 success_rate (40/40).
+
+GEAK kernel test, paired. docs/blog/results/r6/geak_kernel_paired_ab.py on GPU 2, 12 rounds alternating in one
+process, GEAK's timing method (median of CUDA-graph replays, 50 calls per graph); log geak_kernel_paired_ab.txt.
+  one weight tensor, as GEAK's harness: 2026-11-03 1.0462x, 2026-11-05 1.0413x (geomean of K=3072 and K=4096)
+  64 rotating weight tensors:           2026-11-03 1.0581x, 2026-11-05 1.0622x
+GEAK's own verification, which times the baseline and the edit in separate runs: 1.0378x and 1.0142x.
+In the warm GEAK trace, _fw_skred_kernel runs 1,304 times (0.31% of GPU time); 57,376 of the 58,680 skmm calls add
+their partials in _fw_skpost_kernel.
+
+Eager alone, pinned vs unpinned, GPU 0, alternating, nothing else on the node:
+  unpinned 247.1560 225.1231 227.5372 -> 227.54 ms   pinned (docker_cpus 0-15,128-143) 219.2757 219.0468 220.8706 -> 219.28 ms
+  gain 3.63%, noise 9.68% (the 247.16 ms run), not kept here. The four-arm A/B above kept it.
+CAE-FastWAM, unpinned, nothing else on the node: 13.5904 and 13.5883 ms.

@@ -1,0 +1,167 @@
+{
+ "gate_geak_shipped_1": {
+  "run_id": "r6-gate_geak_shipped_1",
+  "time_utc": "2026-11-06 02:25:21",
+  "performance": "24.8022 ms"
+ },
+ "gate_geak_r6cand_1": {
+  "run_id": "r6-gate_geak_r6cand_1",
+  "time_utc": "2026-11-06 02:27:02",
+  "performance": "24.2641 ms"
+ },
+ "gate_geak_nov3_1": {
+  "run_id": "r6-gate_geak_nov3_1",
+  "time_utc": "2026-11-06 02:28:42",
+  "performance": "24.6895 ms"
+ },
+ "gate_geak_r6cand_2": {
+  "run_id": "r6-gate_geak_r6cand_2",
+  "time_utc": "2026-11-06 02:30:22",
+  "performance": "24.3459 ms"
+ },
+ "gate_geak_nov3_2": {
+  "run_id": "r6-gate_geak_nov3_2",
+  "time_utc": "2026-11-06 02:31:53",
+  "performance": "25.1240 ms"
+ },
+ "gate_geak_shipped_2": {
+  "run_id": "r6-gate_geak_shipped_2",
+  "time_utc": "2026-11-06 02:33:33",
+  "performance": "24.9008 ms"
+ },
+ "gate_geak_nov3_3": {
+  "run_id": "r6-gate_geak_nov3_3",
+  "time_utc": "2026-11-06 02:35:13",
+  "performance": "24.2363 ms"
+ },
+ "gate_geak_shipped_3": {
+  "run_id": "r6-gate_geak_shipped_3",
+  "time_utc": "2026-11-06 02:36:44",
+  "performance": "24.5729 ms"
+ },
+ "gate_geak_r6cand_3": {
+  "run_id": "r6-gate_geak_r6cand_3",
+  "time_utc": "2026-11-06 02:38:24",
+  "performance": "24.7566 ms"
+ },
+ "gate_geak_shipped_4": {
+  "run_id": "r6-gate_geak_shipped_4",
+  "time_utc": "2026-11-06 02:40:04",
+  "performance": "24.4554 ms"
+ },
+ "gate_geak_r6cand_4": {
+  "run_id": "r6-gate_geak_r6cand_4",
+  "time_utc": "2026-11-06 02:41:45",
+  "performance": "25.5075 ms"
+ },
+ "gate_geak_nov3_4": {
+  "run_id": "r6-gate_geak_nov3_4",
+  "time_utc": "2026-11-06 02:43:25",
+  "performance": "24.7170 ms"
+ },
+ "gate_geak2_shipped_1": {
+  "run_id": "r6-gate_geak2_shipped_1",
+  "time_utc": "2026-11-06 02:44:58",
+  "performance": "9.9252 ms"
+ },
+ "gate_geak2_r6cand_1": {
+  "run_id": "r6-gate_geak2_r6cand_1",
+  "time_utc": "2026-11-06 02:46:39",
+  "performance": "9.9052 ms"
+ },
+ "gate_geak2_nov3_1": {
+  "run_id": "r6-gate_geak2_nov3_1",
+  "time_utc": "2026-11-06 02:48:19",
+  "performance": "9.8207 ms"
+ },
+ "gate_geak2_r6cand_2": {
+  "run_id": "r6-gate_geak2_r6cand_2",
+  "time_utc": "2026-11-06 02:49:49",
+  "performance": "9.7965 ms"
+ },
+ "gate_geak2_nov3_2": {
+  "run_id": "r6-gate_geak2_nov3_2",
+  "time_utc": "2026-11-06 02:51:30",
+  "performance": "9.7867 ms"
+ },
+ "gate_geak2_shipped_2": {
+  "run_id": "r6-gate_geak2_shipped_2",
+  "time_utc": "2026-11-06 02:53:10",
+  "performance": "9.8340 ms"
+ },
+ "gate_geak2_nov3_3": {
+  "run_id": "r6-gate_geak2_nov3_3",
+  "time_utc": "2026-11-06 02:54:40",
+  "performance": "9.7848 ms"
+ },
+ "gate_geak2_shipped_3": {
+  "run_id": "r6-gate_geak2_shipped_3",
+  "time_utc": "2026-11-06 02:56:21",
+  "performance": "9.8796 ms"
+ },
+ "gate_geak2_r6cand_3": {
+  "run_id": "r6-gate_geak2_r6cand_3",
+  "time_utc": "2026-11-06 02:58:01",
+  "performance": "9.7449 ms"
+ },
+ "gate_geak2_shipped_4": {
+  "run_id": "r6-gate_geak2_shipped_4",
+  "time_utc": "2026-11-06 02:59:41",
+  "performance": "9.8014 ms"
+ },
+ "gate_geak2_r6cand_4": {
+  "run_id": "r6-gate_geak2_r6cand_4",
+  "time_utc": "2026-11-06 03:01:12",
+  "performance": "9.8519 ms"
+ },
+ "gate_geak2_nov3_4": {
+  "run_id": "r6-gate_geak2_nov3_4",
+  "time_utc": "2026-11-06 03:02:52",
+  "performance": "9.8938 ms"
+ },
+ "gate_smoke_geak2_r6cand": {
+  "run_id": "r6-gate_smoke_geak2_r6cand",
+  "time_utc": "2026-11-06 03:09:55",
+  "performance": "1.0000 success_rate"
+ },
+ "pin_eager_unpinned_1": {
+  "run_id": "r6-pin_eager_unpinned_1",
+  "time_utc": "2026-11-06 03:10:59",
+  "performance": "247.1560 ms"
+ },
+ "pin_eager_pinned_1": {
+  "run_id": "r6-pin_eager_pinned_1",
+  "time_utc": "2026-11-06 03:11:59",
+  "performance": "219.2757 ms"
+ },
+ "pin_eager_unpinned_2": {
+  "run_id": "r6-pin_eager_unpinned_2",
+  "time_utc": "2026-11-06 03:12:59",
+  "performance": "225.1231 ms"
+ },
+ "pin_eager_pinned_2": {
+  "run_id": "r6-pin_eager_pinned_2",
+  "time_utc": "2026-11-06 03:14:00",
+  "performance": "219.0468 ms"
+ },
+ "pin_eager_unpinned_3": {
+  "run_id": "r6-pin_eager_unpinned_3",
+  "time_utc": "2026-11-06 03:15:00",
+  "performance": "227.5372 ms"
+ },
+ "pin_eager_pinned_3": {
+  "run_id": "r6-pin_eager_pinned_3",
+  "time_utc": "2026-11-06 03:16:00",
+  "performance": "220.8706 ms"
+ },
+ "cae_2": {
+  "run_id": "r6-cae_2",
+  "time_utc": "2026-11-06 03:17:54",
+  "performance": "13.5904 ms"
+ },
+ "cae_3": {
+  "run_id": "r6-cae_3",
+  "time_utc": "2026-11-06 03:19:45",
+  "performance": "13.5883 ms"
+ }
+}

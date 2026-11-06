@@ -1,0 +1,36 @@
+CHECK baseline K=3072 max_abs_diff_vs_baseline=0.00000
+CHECK baseline K=4096 max_abs_diff_vs_baseline=0.00000
+CHECK nov3_patch K=3072 max_abs_diff_vs_baseline=0.00000
+CHECK nov3_patch K=4096 max_abs_diff_vs_baseline=0.00000
+CHECK r6_run1 K=3072 max_abs_diff_vs_baseline=0.00195
+CHECK r6_run1 K=4096 max_abs_diff_vs_baseline=0.00781
+REP 1/12 done
+REP 2/12 done
+REP 3/12 done
+REP 4/12 done
+REP 5/12 done
+REP 6/12 done
+REP 7/12 done
+REP 8/12 done
+REP 9/12 done
+REP 10/12 done
+REP 11/12 done
+REP 12/12 done
+RESULT mode=hot cfg=baseline K=3072 median_us=5.042 paired_speedup_median=1.0000 min=1.0000 max=1.0000
+RESULT mode=hot cfg=baseline K=4096 median_us=5.300 paired_speedup_median=1.0000 min=1.0000 max=1.0000
+GEOMEAN mode=hot cfg=baseline paired_speedup=1.0000
+RESULT mode=hot cfg=nov3_patch K=3072 median_us=4.816 paired_speedup_median=1.0479 min=1.0350 max=1.0569
+RESULT mode=hot cfg=nov3_patch K=4096 median_us=5.078 paired_speedup_median=1.0445 min=1.0295 max=1.0482
+GEOMEAN mode=hot cfg=nov3_patch paired_speedup=1.0462
+RESULT mode=hot cfg=r6_run1 K=3072 median_us=4.756 paired_speedup_median=1.0603 min=1.0242 max=1.0706
+RESULT mode=hot cfg=r6_run1 K=4096 median_us=5.183 paired_speedup_median=1.0225 min=1.0173 max=1.0241
+GEOMEAN mode=hot cfg=r6_run1 paired_speedup=1.0413
+RESULT mode=rotating cfg=baseline K=3072 median_us=6.552 paired_speedup_median=1.0000 min=1.0000 max=1.0000
+RESULT mode=rotating cfg=baseline K=4096 median_us=7.251 paired_speedup_median=1.0000 min=1.0000 max=1.0000
+GEOMEAN mode=rotating cfg=baseline paired_speedup=1.0000
+RESULT mode=rotating cfg=nov3_patch K=3072 median_us=6.339 paired_speedup_median=1.0339 min=1.0291 max=1.0369
+RESULT mode=rotating cfg=nov3_patch K=4096 median_us=6.704 paired_speedup_median=1.0829 min=1.0772 max=1.0900
+GEOMEAN mode=rotating cfg=nov3_patch paired_speedup=1.0581
+RESULT mode=rotating cfg=r6_run1 K=3072 median_us=6.147 paired_speedup_median=1.0648 min=1.0621 max=1.0704
+RESULT mode=rotating cfg=r6_run1 K=4096 median_us=6.843 paired_speedup_median=1.0597 min=1.0562 max=1.0675
+GEOMEAN mode=rotating cfg=r6_run1 paired_speedup=1.0622
